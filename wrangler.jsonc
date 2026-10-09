@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dime-portfolio-tracker",
+  "compatibility_date": "2026-10-01",
+  // Static files only for now: the built site in dist/. A Worker script for the
+  // price proxy can be added later with "main".
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
