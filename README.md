@@ -90,11 +90,15 @@ npm run deploy   # build + publish to Cloudflare (needs `npx wrangler login` onc
   latest US trading day vs the close before it. **MoM / YoY** are time-weighted returns over the past month / year, so money
   added or withdrawn doesn't count as growth; the ฿ figure beside each is the
   change in value minus money added.
-- **Total P&L:** value + everything sold − everything bought, split into
-  realized (FIFO cost basis, as in the Python version) and unrealized.
+- **Total P&L:** realized + unrealized. Realized is the actual baht from FIFO
+  cost basis (as in the Python version). Unrealized matches the Dime! app:
+  (price − average cost) × units in USD, at today's USD/THB rate, with average
+  cost excluding fees. So the exchange-rate move on what you hold isn't counted
+  as profit; the tile shows that amount separately.
 - **P&L by asset:** the same split per security: units, average cost, price,
-  value, unrealized (% of the held shares' cost), realized, and total (% of
-  everything spent buying it). Sortable; sold-out assets can be hidden.
+  value, unrealized (price vs average cost, as in Dime!), realized, and total
+  (% of everything spent buying it). Sortable; sold-out assets can be hidden.
+  Computed in `src/lib/assets.ts`.
 - **Win rate:** share of closed sells with a profit, excluding cash-parking
   ETFs (`WIN_RATE_EXCLUDED` in `src/lib/analytics.ts`).
 - **Does the win rate pay off?** Average win vs average loss (payoff ratio),
@@ -134,6 +138,7 @@ Settings → Build → Variables and secrets) when Cloudflare builds from GitHub
 | `src/lib/sync.ts` | Sync new emails into the database | `main.py` |
 | `src/lib/analytics.ts` | FIFO realized P&L, win rate, payoff stats | `analytics.py` |
 | `src/lib/prices.ts` | Daily closes via the price proxy | `market_data.py` |
+| `src/lib/assets.ts` | P&L per security, Dime!-style unrealized | |
 | `src/lib/benchmark.ts` | Daily valuation, S&P 500 mirror, XIRR, MoM/YoY | `benchmark.py` |
 | `src/components/Dashboard.tsx` | Stat tiles, win-rate card, chart card | `dashboard.py` |
 | `worker/index.ts` | Price proxy (Cloudflare Worker → Yahoo Finance) | |

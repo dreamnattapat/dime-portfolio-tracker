@@ -49,6 +49,8 @@ export type Timeline = {
   points: TimelinePoint[]
   /** What's held on the last day, valued at the latest prices. */
   holdings: Holding[]
+  /** The latest USD/THB rate. */
+  usdThb: number
   /** Securities with no market history (e.g. delisted), valued at their last trade price. */
   approximated: string[]
   /** The most recent US trading day with a price, ISO date (it can be today's, still trading). */
@@ -83,7 +85,7 @@ export function computeTimeline(
   prices: Map<string, PriceSeries | null>,
   today: string,
 ): Timeline {
-  if (!flows.length) return { points: [], holdings: [], approximated: [], latestSession: '' }
+  if (!flows.length) return { points: [], holdings: [], usdThb: fx.latest, approximated: [], latestSession: '' }
   const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
 
   // Units in today's split-adjusted shares, so they pair with adjusted closes.
@@ -142,7 +144,13 @@ export function computeTimeline(
     })
   }
   holdings.sort((a, b) => b.valueThb - a.valueThb)
-  return { points, holdings, approximated: [...approximated].sort(), latestSession: spy.dates.at(-1)! }
+  return {
+    points,
+    holdings,
+    usdThb: fx.latest,
+    approximated: [...approximated].sort(),
+    latestSession: spy.dates.at(-1)!,
+  }
 }
 
 /** ISO date `months` months before `iso`, clamped to the month's last day (31 Mar -> 28/29 Feb). */

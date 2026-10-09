@@ -7,6 +7,7 @@ import { PortfolioChart } from '@/components/PortfolioChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
 import { buildPortfolio, type PeriodChange, type Portfolio } from '@/lib/benchmark'
+import { computeAssetPnl, sumAssets } from '@/lib/assets'
 import type { Transaction } from '@/lib/db'
 import { formatDate, formatNumber, formatPercent, formatSignedThb, formatThb, localToday } from '@/lib/format'
 
@@ -42,7 +43,11 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
   const portfolio = loaded?.portfolio ?? null
   const error = loading ? null : (loaded?.error ?? null)
   const pending = loading ? '…' : '—'
-  const unrealized = portfolio ? portfolio.totalGainThb - analytics.realizedPnlThb : null
+  const assets = useMemo(() => computeAssetPnl(analytics, portfolio?.timeline ?? null), [analytics, portfolio])
+  const unrealized = sumAssets(assets, (a) => a.unrealizedThb)
+  const totalPnl = unrealized == null ? null : analytics.realizedPnlThb + unrealized
+  // What Dime! leaves out of P&L: the exchange-rate move on what's held (less its buy fees).
+  const uncounted = portfolio && totalPnl != null ? portfolio.totalGainThb - totalPnl : null
   const { stats } = analytics
 
   return (
@@ -58,12 +63,20 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
 
         <StatCard label="Total P&L">
           <p className="text-3xl font-semibold tracking-tight">
-            {portfolio ? formatSignedThb(portfolio.totalGainThb) : pending}
+            {totalPnl == null ? pending : formatSignedThb(totalPnl)}
           </p>
           <dl className="text-muted-foreground space-y-1 text-sm">
             <Row label="Realized">{formatSignedThb(analytics.realizedPnlThb)}</Row>
             <Row label="Unrealized">{unrealized == null ? pending : formatSignedThb(unrealized)}</Row>
           </dl>
+          {uncounted != null && Math.abs(uncounted) >= 1 && (
+            <p
+              className="text-muted-foreground text-xs"
+              title="Like Dime!, unrealized P&L is the stock price vs your average cost (excluding fees), converted at today's rate. So a change in USD/THB since you bought, and the buy fees, aren't counted. Your baht value includes them."
+            >
+              Not counted, as in Dime!: {formatSignedThb(uncounted)} from the USD/THB move and buy fees on what you hold
+            </p>
+          )}
         </StatCard>
 
         <StatCard label="Win rate">
@@ -115,12 +128,13 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
         <CardHeader>
           <CardTitle>P&L by asset</CardTitle>
           <CardDescription>
-            Unrealized is what the shares you still hold are up or down on what they cost; realized is what you made or
-            lost on shares already sold. In THB, so it includes currency moves.
+            Unrealized is how far the price is above or below your average cost, as in the Dime! app (average cost
+            excludes fees; converted at today's USD/THB rate). Realized is the baht you made or lost on shares already
+            sold, including fees and currency moves.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AssetsTable analytics={analytics} holdings={portfolio?.timeline.holdings ?? null} loading={loading} />
+          <AssetsTable assets={assets} loading={loading} />
         </CardContent>
       </Card>
 

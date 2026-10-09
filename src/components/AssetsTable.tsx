@@ -6,53 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePagination } from '@/hooks/usePagination'
-import type { Analytics } from '@/lib/analytics'
-import type { Holding } from '@/lib/benchmark'
+import { sumAssets, type AssetPnl } from '@/lib/assets'
 import { formatNumber, formatPercent, formatSignedThb, formatThb, formatUnits } from '@/lib/format'
-
-type AssetRow = {
-  security: string
-  held: boolean
-  /** Null while prices load (or if they failed) for a held asset. */
-  units: number | null
-  avgCostUsd: number | null
-  priceUsd: number | null
-  valueThb: number | null
-  unrealizedThb: number | null
-  /** Unrealized P&L as % of what the shares still held cost. */
-  unrealizedPct: number | null
-  realizedThb: number
-  totalThb: number | null
-  /** Total P&L as % of everything ever spent buying it. */
-  totalPct: number | null
-  approximated: boolean
-}
-
-function buildRows(analytics: Analytics, holdings: Holding[] | null): AssetRow[] {
-  return analytics.assets.map((asset) => {
-    const open = analytics.openPositions.find((p) => p.security === asset.security)
-    const holding = holdings?.find((h) => h.security === asset.security)
-    const held = !!open
-    const priced = !held || !!holding
-    const unrealized = !held ? 0 : holding ? holding.valueThb - open.costBasisThb : null
-    const total = unrealized == null ? null : asset.realizedPnlThb + unrealized
-    return {
-      security: asset.security,
-      held,
-      // Holdings count today's shares (after splits); the cost basis doesn't know about splits.
-      units: holding?.units ?? open?.units ?? null,
-      avgCostUsd: open ? open.costBasisUsd / (holding?.units ?? open.units) : null,
-      priceUsd: holding?.priceUsd ?? null,
-      valueThb: !held ? 0 : (holding?.valueThb ?? null),
-      unrealizedThb: unrealized,
-      unrealizedPct: open && unrealized != null && open.costBasisThb ? (unrealized / open.costBasisThb) * 100 : null,
-      realizedThb: asset.realizedPnlThb,
-      totalThb: priced ? total : null,
-      totalPct: total != null && asset.boughtThb ? (total / asset.boughtThb) * 100 : null,
-      approximated: holding?.approximated ?? false,
-    }
-  })
-}
 
 const COLUMNS = [
   { key: 'security', label: 'Asset', numeric: false },
@@ -65,19 +20,10 @@ const COLUMNS = [
 type SortKey = (typeof COLUMNS)[number]['key']
 
 /** Each security's profit and loss: unrealized on what's still held, realized on what was sold. */
-export function AssetsTable({
-  analytics,
-  holdings,
-  loading,
-}: {
-  analytics: Analytics
-  holdings: Holding[] | null
-  loading: boolean
-}) {
+export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; loading: boolean }) {
   const [filter, setFilter] = useState<'all' | 'held'>('all')
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'valueThb', desc: true })
 
-  const all = buildRows(analytics, holdings)
   const filtered = filter === 'held' ? all.filter((r) => r.held) : all
   const sorted = filtered.toSorted((a, b) => {
     const order = compare(a[sort.key], b[sort.key]) || compare(a.totalThb, b.totalThb)
@@ -86,8 +32,7 @@ export function AssetsTable({
   const { rows, pager } = usePagination(sorted)
   const pending = loading ? '…' : '—'
 
-  const sum = (pick: (r: AssetRow) => number | null) =>
-    filtered.some((r) => pick(r) == null) ? null : filtered.reduce((total, r) => total + pick(r)!, 0)
+  const sum = (pick: (r: AssetPnl) => number | null) => sumAssets(filtered, pick)
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: key !== 'security' }))
@@ -136,7 +81,7 @@ export function AssetsTable({
               <TableCell className="text-right tabular-nums">
                 {!r.held ? '—' : r.units == null ? pending : formatUnits(r.units)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">{formatNumber(r.avgCostUsd)}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatNumber(r.avgCostUsd, 4)}</TableCell>
               <TableCell className="text-right tabular-nums">
                 {!r.held ? '—' : r.priceUsd == null ? pending : formatNumber(r.priceUsd)}
                 {r.approximated && <span title="No market price; last trade price">*</span>}
@@ -216,7 +161,7 @@ function PnlCell({
   return (
     <TableCell className={`text-right tabular-nums ${color} ${strong ? 'font-semibold' : ''}`}>
       {formatSignedThb(value)}
-      {pct != null && <div className="text-xs opacity-80">{formatPercent(pct, { signed: true })}</div>}
+      {pct != null && <div className="text-xs opacity-80">{formatPercent(pct, { signed: true, decimals: 2 })}</div>}
     </TableCell>
   )
 }

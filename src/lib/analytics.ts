@@ -50,8 +50,14 @@ export type ClosedTrade = {
 export type OpenPosition = {
   security: string
   units: number
+  /** FIFO cost of the units held, including fees. */
   costBasisThb: number
-  costBasisUsd: number
+  /**
+   * Cost of the units held as Dime! shows it: average purchase price
+   * (excluding fees) times units. Sells don't change the average; selling
+   * out completely resets it.
+   */
+  avgCostBasisUsd: number
 }
 
 /** Lifetime totals for one security, open or closed. */
@@ -99,7 +105,10 @@ export function compareOldestFirst(a: ParsedTransaction, b: ParsedTransaction): 
   return tradeDate(a).localeCompare(tradeDate(b)) || Number(a.orderId) - Number(b.orderId)
 }
 
-type Lot = { units: number; costPerUnit: number; costPerUnitUsd: number }
+type Lot = { units: number; costPerUnit: number }
+
+/** Dime!'s average-cost bookkeeping for one security, in USD excluding fees. */
+type AverageCost = { units: number; costUsd: number }
 
 export function computeAnalytics(transactions: Transaction[]): Analytics {
   const rows = transactions
@@ -108,6 +117,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
 
   const lots = new Map<string, Lot[]>()
   const assets = new Map<string, AssetTotals>()
+  const averages = new Map<string, AverageCost>()
   const trades: ClosedTrade[] = []
   const cashFlows: CashFlow[] = []
 
@@ -127,15 +137,15 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     if (!queue) lots.set(row.security, (queue = []))
     let asset = assets.get(row.security)
     if (!asset) assets.set(row.security, (asset = { security: row.security, boughtThb: 0, realizedPnlThb: 0 }))
+    let average = averages.get(row.security)
+    if (!average) averages.set(row.security, (average = { units: 0, costUsd: 0 }))
 
     if (!isSell) {
       // Buy, Reward, Exercise Call/Put: a new cost-basis lot.
-      queue.push({
-        units: row.units,
-        costPerUnit: row.units ? row.totalAmountThb / row.units : 0,
-        costPerUnitUsd: row.units ? row.totalAmount / row.units : 0,
-      })
+      queue.push({ units: row.units, costPerUnit: row.units ? row.totalAmountThb / row.units : 0 })
       asset.boughtThb += row.totalAmountThb
+      average.units += row.units
+      average.costUsd += row.units * row.unitPrice
       continue
     }
 
@@ -151,6 +161,12 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     }
     const pnl = row.totalAmountThb - matchedCost
     asset.realizedPnlThb += pnl
+    if (average.units - row.units > EPS) {
+      average.costUsd -= (average.costUsd / average.units) * row.units
+      average.units -= row.units
+    } else {
+      averages.set(row.security, { units: 0, costUsd: 0 })
+    }
     trades.push({
       date: tradeDate(row),
       security: row.security,
@@ -169,8 +185,8 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     const units = queue.reduce((sum, lot) => sum + lot.units, 0)
     if (units > EPS) {
       const costBasisThb = queue.reduce((sum, lot) => sum + lot.units * lot.costPerUnit, 0)
-      const costBasisUsd = queue.reduce((sum, lot) => sum + lot.units * lot.costPerUnitUsd, 0)
-      openPositions.push({ security, units, costBasisThb, costBasisUsd })
+      const avgCostBasisUsd = averages.get(security)?.costUsd ?? 0
+      openPositions.push({ security, units, costBasisThb, avgCostBasisUsd })
     }
   }
   openPositions.sort((a, b) => a.security.localeCompare(b.security))

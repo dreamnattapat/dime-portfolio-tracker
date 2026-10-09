@@ -53,7 +53,8 @@ describe('computeAnalytics', () => {
     expect(result.trades[0].pnlThb).toBeCloseTo(1000)
     expect(result.realizedPnlThb).toBeCloseTo(1000)
     expect(result.openPositions).toEqual([
-      { security: 'AAPL', units: 5, costBasisThb: 1000, costBasisUsd: expect.closeTo(1000 / 33) },
+      // FIFO keeps the 200/unit lot; Dime!'s average cost keeps 5 units at the 150/unit average.
+      { security: 'AAPL', units: 5, costBasisThb: 1000, avgCostBasisUsd: expect.closeTo(750 / 33) },
     ])
     expect(result.assets).toEqual([{ security: 'AAPL', boughtThb: 3000, realizedPnlThb: expect.closeTo(1000) }])
   })
