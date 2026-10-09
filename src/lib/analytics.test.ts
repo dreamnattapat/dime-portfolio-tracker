@@ -52,7 +52,10 @@ describe('computeAnalytics', () => {
     expect(result.trades[0].costThb).toBeCloseTo(2000)
     expect(result.trades[0].pnlThb).toBeCloseTo(1000)
     expect(result.realizedPnlThb).toBeCloseTo(1000)
-    expect(result.openPositions).toEqual([{ security: 'AAPL', units: 5, costBasisThb: 1000 }])
+    expect(result.openPositions).toEqual([
+      { security: 'AAPL', units: 5, costBasisThb: 1000, costBasisUsd: expect.closeTo(1000 / 33) },
+    ])
+    expect(result.assets).toEqual([{ security: 'AAPL', boughtThb: 3000, realizedPnlThb: expect.closeTo(1000) }])
   })
 
   it('sorts by date, not by the order rows are stored in', () => {

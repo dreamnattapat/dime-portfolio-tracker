@@ -1,6 +1,7 @@
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { AssetsTable } from '@/components/AssetsTable'
 import { DayMood } from '@/components/DayMood'
 import { PortfolioChart } from '@/components/PortfolioChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -110,6 +111,19 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>P&L by asset</CardTitle>
+          <CardDescription>
+            Unrealized is what the shares you still hold are up or down on what they cost; realized is what you made or
+            lost on shares already sold. In THB, so it includes currency moves.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AssetsTable analytics={analytics} holdings={portfolio?.timeline.holdings ?? null} loading={loading} />
+        </CardContent>
+      </Card>
+
       {analytics.incompleteBasisTrades > 0 && (
         <p className="text-muted-foreground text-xs">
           {analytics.incompleteBasisTrades} sell(s) have no matching buy in your Gmail history (bought before the emails
@@ -124,12 +138,17 @@ const TWR_HINT =
   "% is the time-weighted return, so money you add or withdraw doesn't count as growth. ฿ is the change in value minus money added."
 
 function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pending: string }) {
-  const [plays, setPlays] = useState(0)
   const day = portfolio?.day
   const mood = !day || day.returnPct === 0 ? null : day.returnPct > 0 ? 'up' : 'down'
 
   return (
-    <StatCard label="Portfolio value" className="relative overflow-hidden">
+    <StatCard label="Total asset" className="relative">
+      {/* Plays once when the day's change is known; click to replay. */}
+      {mood && (
+        <div className="absolute top-5 right-5">
+          <DayMood mood={mood} />
+        </div>
+      )}
       <p className="text-3xl font-semibold tracking-tight">{portfolio ? formatThb(portfolio.valueThb) : pending}</p>
       <div className="space-y-1 text-sm">
         <Delta
@@ -137,23 +156,10 @@ function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pendin
           change={day}
           pending={!portfolio}
           title={`The latest US trading day${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} vs the close before it, including the USD/THB move. ${TWR_HINT}`}
-        >
-          {mood && (
-            <button
-              className="ml-auto text-base leading-none transition-transform hover:scale-125"
-              onClick={() => setPlays((n) => n + 1)}
-              aria-label="Play the animation again"
-              title="Play again"
-            >
-              {mood === 'up' ? '🚀' : '🌧️'}
-            </button>
-          )}
-        </Delta>
+        />
         <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
         <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
       </div>
-      {/* Plays once when the day's change is known, and again on click. */}
-      {mood && <DayMood key={`${mood}-${plays}`} mood={mood} />}
     </StatCard>
   )
 }
@@ -184,13 +190,11 @@ function Delta({
   change,
   pending,
   title,
-  children,
 }: {
   label: string
   change?: PeriodChange | null
   pending: boolean
   title: string
-  children?: ReactNode
 }) {
   if (!change) {
     return (
@@ -209,7 +213,6 @@ function Delta({
         {formatPercent(change.returnPct, { signed: true })}
       </span>
       <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gainThb)})</span>
-      {children}
     </p>
   )
 }

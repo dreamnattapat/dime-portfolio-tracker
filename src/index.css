@@ -143,70 +143,86 @@
     @apply bg-background text-foreground;
     }
 }
-/* DayMood: the 1-day change animation over the portfolio value card. */
-.mood-overlay {
-    position: absolute;
-    inset: 0;
+/* DayMood: the 1-day change tile in the corner of the total asset card. The
+   base styles are the end state, so reduced motion just shows that. */
+.mood-tile {
+    position: relative;
     overflow: hidden;
-    pointer-events: none;
-    animation: mood-fade 3.6s ease-in forwards;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 0.875rem;
+    cursor: pointer;
+}
+.mood-tile > span {
+    position: absolute;
+    line-height: 1;
 }
 .mood-rocket {
-    position: absolute;
-    font-size: 2.5rem;
-    animation: mood-fly ease-in forwards;
+    left: 50%;
+    top: 50%;
+    font-size: 1.6rem;
+    /* The emoji points up-right; turn it to point straight up. */
+    transform: translate(-50%, -50%) rotate(-45deg);
+    animation:
+        mood-launch 0.9s cubic-bezier(0.2, 0.8, 0.3, 1),
+        mood-bob 1.2s ease-in-out 0.9s 3;
 }
-.mood-sparkle,
-.mood-star {
-    position: absolute;
+.mood-puff {
+    left: calc(50% - 4px);
+    top: 72%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
     opacity: 0;
-    animation: mood-pop 0.9s ease-out forwards;
+    animation: mood-puff 0.7s ease-out 2;
 }
-.mood-star {
-    font-size: 0.9rem;
+.mood-sparkle {
+    font-size: 0.6rem;
+    opacity: 0;
+    animation: mood-twinkle 0.8s ease-in-out 3;
 }
 .mood-cloud {
-    position: absolute;
-    top: 0.25rem;
-    font-size: 2.5rem;
-    animation: mood-drift 3.6s ease-out forwards;
+    left: 50%;
+    top: 10%;
+    font-size: 1.6rem;
+    transform: translateX(-50%);
+    animation: mood-sway 1.4s ease-in-out 3;
 }
 .mood-drop {
-    position: absolute;
-    top: -12%;
+    top: 50%;
     width: 2px;
-    height: 14px;
+    height: 8px;
     border-radius: 2px;
-    background: linear-gradient(to bottom, transparent, var(--series-you));
-    opacity: 0.6;
-    animation-name: mood-fall;
-    animation-timing-function: linear;
-    animation-iteration-count: 3;
+    background: var(--series-you);
+    opacity: 0;
+    animation: mood-fall 0.8s linear 5;
 }
 
-@keyframes mood-fade {
-    0%, 80% { opacity: 1; }
-    100% { opacity: 0; }
+@keyframes mood-launch {
+    from { transform: translate(-50%, 90%) rotate(-45deg); }
 }
-@keyframes mood-fly {
-    0% { left: 2%; bottom: -25%; transform: scale(0.7); }
-    100% { left: 92%; bottom: 115%; transform: scale(1.2); }
+@keyframes mood-bob {
+    50% { transform: translate(-50%, -62%) rotate(-45deg); }
 }
-@keyframes mood-pop {
-    0% { opacity: 0; transform: scale(0.2) rotate(0deg); }
-    30% { opacity: 1; transform: scale(1.2) rotate(20deg); }
-    100% { opacity: 0; transform: scale(0.6) rotate(45deg); }
+@keyframes mood-puff {
+    0% { opacity: 0.5; transform: scale(0.4); }
+    100% { opacity: 0; transform: translateY(12px) scale(1.6); }
 }
-@keyframes mood-drift {
-    0% { left: -20%; }
-    35%, 100% { left: 70%; }
+@keyframes mood-twinkle {
+    50% { opacity: 1; transform: scale(1.2); }
+}
+@keyframes mood-sway {
+    25% { transform: translateX(-60%); }
+    75% { transform: translateX(-40%); }
 }
 @keyframes mood-fall {
-    to { top: 112%; }
+    0% { opacity: 0.8; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(20px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mood-overlay {
-        display: none;
+    .mood-tile * {
+        animation: none !important;
     }
 }

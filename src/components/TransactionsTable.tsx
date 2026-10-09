@@ -1,9 +1,7 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
-
+import { Pagination } from '@/components/Pagination'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { usePagination } from '@/hooks/usePagination'
 import type { Transaction } from '@/lib/db'
 import { formatDate, formatNumber, formatUnits } from '@/lib/format'
 
@@ -21,16 +19,8 @@ function compareNewestFirst(a: Transaction, b: Transaction): number {
   return orderB - orderA
 }
 
-const PAGE_SIZE = 20
-
 export function TransactionsTable({ transactions }: { transactions: Transaction[] }) {
-  const [page, setPage] = useState(0)
-  const sorted = [...transactions].sort(compareNewestFirst)
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  // Stay on a real page if a re-sync or delete shrinks the list.
-  const current = Math.min(page, pageCount - 1)
-  const first = current * PAGE_SIZE
-  const rows = sorted.slice(first, first + PAGE_SIZE)
+  const { rows, pager } = usePagination([...transactions].sort(compareNewestFirst))
 
   return (
     <div className="space-y-3">
@@ -74,31 +64,7 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
           )}
         </TableBody>
       </Table>
-      {pageCount > 1 && (
-        <nav className="flex items-center justify-between gap-3 text-sm" aria-label="Transactions pages">
-          <p className="text-muted-foreground tabular-nums">
-            {first + 1}–{first + rows.length} of {sorted.length}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon-sm" disabled={current === 0} onClick={() => setPage(current - 1)}>
-              <ChevronLeft />
-              <span className="sr-only">Newer</span>
-            </Button>
-            <span className="text-muted-foreground tabular-nums">
-              Page {current + 1} of {pageCount}
-            </span>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={current === pageCount - 1}
-              onClick={() => setPage(current + 1)}
-            >
-              <ChevronRight />
-              <span className="sr-only">Older</span>
-            </Button>
-          </div>
-        </nav>
-      )}
+      <Pagination {...pager} label="Transactions pages" previous="Newer" next="Older" />
     </div>
   )
 }

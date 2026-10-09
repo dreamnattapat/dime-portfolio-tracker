@@ -34,8 +34,21 @@ export type TimelinePoint = {
   sold: number
 }
 
+/** One security held today. */
+export type Holding = {
+  security: string
+  /** In today's shares, i.e. after any splits. */
+  units: number
+  priceUsd: number
+  valueThb: number
+  /** No market price, so valued at the last trade price. */
+  approximated: boolean
+}
+
 export type Timeline = {
   points: TimelinePoint[]
+  /** What's held on the last day, valued at the latest prices. */
+  holdings: Holding[]
   /** Securities with no market history (e.g. delisted), valued at their last trade price. */
   approximated: string[]
   /** The most recent US trading day with a price, ISO date (it can be today's, still trading). */
@@ -70,7 +83,7 @@ export function computeTimeline(
   prices: Map<string, PriceSeries | null>,
   today: string,
 ): Timeline {
-  if (!flows.length) return { points: [], approximated: [], latestSession: '' }
+  if (!flows.length) return { points: [], holdings: [], approximated: [], latestSession: '' }
   const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
 
   // Units in today's split-adjusted shares, so they pair with adjusted closes.
@@ -81,6 +94,7 @@ export function computeTimeline(
   let spyShares = 0
   let i = 0
   const points: TimelinePoint[] = []
+  const holdings: Holding[] = []
 
   for (const day of days) {
     let bought = 0
@@ -97,22 +111,27 @@ export function computeTimeline(
     }
 
     const isToday = day === today
+    const usdThb = isToday ? fx.latest : fx.on(day)
     let holdingsUsd = 0
     for (const [security, held] of units) {
       if (Math.abs(held) < EPS) continue
       const series = prices.get(security)
       let price: number
+      let approx = false
       try {
         if (!series) throw new RangeError(`no history for ${security}`)
         price = isToday ? series.latest : series.on(day)
       } catch {
         price = lastTradePrice.get(security) ?? 0
         approximated.add(security)
+        approx = true
       }
       holdingsUsd += held * price
+      if (isToday) {
+        holdings.push({ security, units: held, priceUsd: price, valueThb: held * price * usdThb, approximated: approx })
+      }
     }
 
-    const usdThb = isToday ? fx.latest : fx.on(day)
     points.push({
       date: day,
       value: holdingsUsd * usdThb,
@@ -122,7 +141,8 @@ export function computeTimeline(
       sold,
     })
   }
-  return { points, approximated: [...approximated].sort(), latestSession: spy.dates.at(-1)! }
+  holdings.sort((a, b) => b.valueThb - a.valueThb)
+  return { points, holdings, approximated: [...approximated].sort(), latestSession: spy.dates.at(-1)! }
 }
 
 /** ISO date `months` months before `iso`, clamped to the month's last day (31 Mar -> 28/29 Feb). */

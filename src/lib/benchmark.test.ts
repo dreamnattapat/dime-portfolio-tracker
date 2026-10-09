@@ -61,6 +61,12 @@ describe('computeTimeline', () => {
     expect(points.map((p) => p.value)).toEqual([3000, 3000, 3000, 3000, 3000])
   })
 
+  it("lists today's holdings in post-split shares", () => {
+    const prices = new Map([['NVDA', series('NVDA', [50, 50, 50, 50], 60, [['2026-01-07', 2]])]])
+    const { holdings } = computeTimeline([flow('2026-01-05', 'NVDA', 1, 100)], spy, fx, prices, '2026-01-09')
+    expect(holdings).toEqual([{ security: 'NVDA', units: 2, priceUsd: 60, valueThb: 3600, approximated: false }])
+  })
+
   it('falls back to the last trade price for a ticker without history', () => {
     const { points, approximated } = computeTimeline(
       [flow('2026-01-05', 'GONE', 10, 100)],

@@ -85,12 +85,16 @@ npm run deploy   # build + publish to Cloudflare (needs `npx wrangler login` onc
 
 ## Dashboard
 
-- **Portfolio value:** open holdings at today's price and USD/THB rate.
-  **MoM / YoY** are time-weighted returns over the past month / year, so money
+- **Total asset:** open holdings at today's price and USD/THB rate (Dime!
+  cash balances aren't in the emails, so they're not included). **1D** is the
+  latest US trading day vs the close before it. **MoM / YoY** are time-weighted returns over the past month / year, so money
   added or withdrawn doesn't count as growth; the ฿ figure beside each is the
   change in value minus money added.
 - **Total P&L:** value + everything sold − everything bought, split into
   realized (FIFO cost basis, as in the Python version) and unrealized.
+- **P&L by asset:** the same split per security: units, average cost, price,
+  value, unrealized (% of the held shares' cost), realized, and total (% of
+  everything spent buying it). Sortable; sold-out assets can be hidden.
 - **Win rate:** share of closed sells with a profit, excluding cash-parking
   ETFs (`WIN_RATE_EXCLUDED` in `src/lib/analytics.ts`).
 - **Does the win rate pay off?** Average win vs average loss (payoff ratio),

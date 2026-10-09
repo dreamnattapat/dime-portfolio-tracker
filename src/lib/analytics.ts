@@ -51,6 +51,15 @@ export type OpenPosition = {
   security: string
   units: number
   costBasisThb: number
+  costBasisUsd: number
+}
+
+/** Lifetime totals for one security, open or closed. */
+export type AssetTotals = {
+  security: string
+  /** Everything ever spent buying it. */
+  boughtThb: number
+  realizedPnlThb: number
 }
 
 /** Why a high win rate alone doesn't mean the trading pays. */
@@ -73,6 +82,7 @@ export type TradeStats = {
 
 export type Analytics = {
   realizedPnlThb: number
+  assets: AssetTotals[]
   trades: ClosedTrade[]
   openPositions: OpenPosition[]
   cashFlows: CashFlow[]
@@ -89,7 +99,7 @@ export function compareOldestFirst(a: ParsedTransaction, b: ParsedTransaction): 
   return tradeDate(a).localeCompare(tradeDate(b)) || Number(a.orderId) - Number(b.orderId)
 }
 
-type Lot = { units: number; costPerUnit: number }
+type Lot = { units: number; costPerUnit: number; costPerUnitUsd: number }
 
 export function computeAnalytics(transactions: Transaction[]): Analytics {
   const rows = transactions
@@ -97,6 +107,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     .sort(compareOldestFirst)
 
   const lots = new Map<string, Lot[]>()
+  const assets = new Map<string, AssetTotals>()
   const trades: ClosedTrade[] = []
   const cashFlows: CashFlow[] = []
 
@@ -114,10 +125,17 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
 
     let queue = lots.get(row.security)
     if (!queue) lots.set(row.security, (queue = []))
+    let asset = assets.get(row.security)
+    if (!asset) assets.set(row.security, (asset = { security: row.security, boughtThb: 0, realizedPnlThb: 0 }))
 
     if (!isSell) {
       // Buy, Reward, Exercise Call/Put: a new cost-basis lot.
-      queue.push({ units: row.units, costPerUnit: row.units ? row.totalAmountThb / row.units : 0 })
+      queue.push({
+        units: row.units,
+        costPerUnit: row.units ? row.totalAmountThb / row.units : 0,
+        costPerUnitUsd: row.units ? row.totalAmount / row.units : 0,
+      })
+      asset.boughtThb += row.totalAmountThb
       continue
     }
 
@@ -132,6 +150,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
       else lot.units -= take
     }
     const pnl = row.totalAmountThb - matchedCost
+    asset.realizedPnlThb += pnl
     trades.push({
       date: tradeDate(row),
       security: row.security,
@@ -150,13 +169,15 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     const units = queue.reduce((sum, lot) => sum + lot.units, 0)
     if (units > EPS) {
       const costBasisThb = queue.reduce((sum, lot) => sum + lot.units * lot.costPerUnit, 0)
-      openPositions.push({ security, units, costBasisThb })
+      const costBasisUsd = queue.reduce((sum, lot) => sum + lot.units * lot.costPerUnitUsd, 0)
+      openPositions.push({ security, units, costBasisThb, costBasisUsd })
     }
   }
   openPositions.sort((a, b) => a.security.localeCompare(b.security))
 
   return {
     realizedPnlThb: trades.reduce((sum, t) => sum + t.pnlThb, 0),
+    assets: [...assets.values()],
     trades: trades.reverse(), // newest first
     openPositions,
     cashFlows,
