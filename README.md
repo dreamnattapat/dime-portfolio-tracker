@@ -78,9 +78,13 @@ security headers from `public/_headers`. Its Content-Security-Policy only lets
 the page talk to itself and Google, so the browser blocks any attempt to send
 user data elsewhere. Keep it that way when adding features.
 
+**Every push to `main` deploys automatically** (Cloudflare Workers Builds,
+connected to this GitHub repo). `npm run deploy` from a laptop also works, for
+publishing without a push.
+
 `VITE_GOOGLE_CLIENT_ID` is baked in at build time: from `.env.local` when
-deploying from a laptop, or from a build variable when Cloudflare builds from
-GitHub.
+deploying from a laptop, or from the build variable of the same name (Worker →
+Settings → Build → Variables and secrets) when Cloudflare builds from GitHub.
 
 ## Project structure
 
