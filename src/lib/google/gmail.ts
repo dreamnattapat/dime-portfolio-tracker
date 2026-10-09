@@ -33,16 +33,33 @@ type MessagePart = {
   parts?: MessagePart[]
 }
 
+// Gmail's per-user quota is counted per minute, so the waits (1s, 2s, ... 32s)
+// add up to just over a minute before giving up.
+const MAX_RETRIES = 6
+const RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded'])
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 async function gmailGet<T>(accessToken: string, path: string, params: Record<string, string> = {}): Promise<T> {
   const query = new URLSearchParams(params).toString()
-  const response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!response.ok) {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (response.ok) return response.json()
+
     const body = await response.json().catch(() => null)
+    const rateLimited =
+      response.status === 429 ||
+      (response.status === 403 && RATE_LIMIT_REASONS.has(body?.error?.errors?.[0]?.reason))
+    if (rateLimited && attempt < MAX_RETRIES) {
+      // Exponential backoff with jitter, as Google recommends, so parallel
+      // downloads don't all retry at the same instant.
+      await sleep(2 ** attempt * 1000 + Math.random() * 1000)
+      continue
+    }
     throw new GmailError(response.status, body?.error?.message ?? `Gmail request failed (${response.status})`)
   }
-  return response.json()
 }
 
 export async function findDimeMessageIds(accessToken: string, maxResults?: number): Promise<string[]> {
