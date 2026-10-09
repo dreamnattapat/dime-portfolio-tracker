@@ -8,12 +8,12 @@ import {
   type ISeriesApi,
   type Time,
 } from 'lightweight-charts'
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Check, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { changeBetween, monthsBefore, type TimelinePoint } from '@/lib/benchmark'
+import { changeBetween, monthsBefore, rangeStart, scorecard, type TimelinePoint } from '@/lib/benchmark'
 import { formatCompactMoney, formatDate, formatMoney, formatPercent, formatSignedMoney } from '@/lib/format'
 
 const LINES = {
@@ -41,20 +41,21 @@ const VALUE_OF: Partial<Record<LineKey, (p: TimelinePoint) => number>> = {
 const gainSince = (value: (p: TimelinePoint) => number) => (p: TimelinePoint, base: TimelinePoint) =>
   value(p) - p.invested - (value(base) - base.invested)
 
-const VIEWS: Record<'value' | 'gain', { label: string; series: SeriesDef[] }> = {
+// Gain first: "am I beating the S&P 500?" is the chart's main question.
+const VIEWS: Record<'gain' | 'value', { label: string; series: SeriesDef[] }> = {
+  gain: {
+    label: 'Gain',
+    series: [
+      { key: 'you', label: 'Your gain', of: gainSince((p) => p.value) },
+      { key: 'spy', label: 'Gain with the S&P 500', of: gainSince((p) => p.spy) },
+    ],
+  },
   value: {
     label: 'Value',
     series: [
       { key: 'you', label: 'Your portfolio', of: (p) => p.value },
       { key: 'spy', label: 'Same trades in the S&P 500', of: (p) => p.spy },
       { key: 'invested', label: 'Net invested', of: (p) => p.invested },
-    ],
-  },
-  gain: {
-    label: 'Gain',
-    series: [
-      { key: 'you', label: 'Your gain', of: gainSince((p) => p.value) },
-      { key: 'spy', label: 'Gain with the S&P 500', of: gainSince((p) => p.spy) },
     ],
   },
 }
@@ -77,7 +78,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
   const [hovered, setHovered] = useState<number | null>(null)
   const [range, setRange] = useState<string>('All')
-  const [view, setView] = useState<keyof typeof VIEWS>('value')
+  const [view, setView] = useState<keyof typeof VIEWS>('gain')
   const { series } = VIEWS[view]
   const byDate = useMemo(() => new Map(points.map((p, i) => [p.date, i])), [points])
   // The crosshair handler is set up once, so it reads the latest points through a ref.
@@ -128,13 +129,8 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   }, [])
 
   const months = RANGES.find((r) => r.label === range)?.months
-  const start =
-    months == null
-      ? 0
-      : Math.max(
-          0,
-          points.findLastIndex((p) => p.date <= monthsBefore(points.at(-1)!.date, months)),
-        )
+  // A range longer than the history shows all of it.
+  const start = Math.max(0, rangeStart(points, months ?? null))
   const base = points[start]
 
   useEffect(() => {
@@ -164,6 +160,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
 
   return (
     <div className="space-y-3">
+      <Scorecards points={points} selected={range} onSelect={setRange} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         {/* Legend and readout in one: values for the hovered day, or the latest. */}
         <dl className="flex flex-wrap gap-x-6 gap-y-2">
@@ -205,19 +202,6 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
               </Button>
             ))}
           </div>
-          <div className="flex gap-1" role="group" aria-label="Time range">
-            {RANGES.map((r) => (
-              <Button
-                key={r.label}
-                size="xs"
-                variant={range === r.label ? 'secondary' : 'ghost'}
-                aria-pressed={range === r.label}
-                onClick={() => setRange(r.label)}
-              >
-                {r.label}
-              </Button>
-            ))}
-          </div>
         </div>
       </div>
       <p className="text-muted-foreground text-xs">
@@ -227,7 +211,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       </p>
       <div ref={containerRef} className="h-72 w-full" />
       <details className="text-sm">
-        <summary className="text-muted-foreground cursor-pointer text-xs">Show as table (month-end values)</summary>
+        <summary className="text-muted-foreground cursor-pointer text-xs">Show table</summary>
         <div className="mt-2 max-h-80 overflow-auto">
           <Table>
             <TableHeader>
@@ -301,6 +285,70 @@ function RangeChange({
       {showAmount && (
         <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '$')})</span>
       )}
+    </span>
+  )
+}
+
+/** "Am I beating the S&P 500?" for each range; each card also selects that range for the chart. */
+function Scorecards({
+  points,
+  selected,
+  onSelect,
+}: {
+  points: TimelinePoint[]
+  selected: string
+  onSelect: (range: string) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Time range">
+      {RANGES.map((r) => {
+        const score = scorecard(points, r.months)
+        const active = selected === r.label
+        return (
+          <button
+            key={r.label}
+            className={`hover:bg-accent rounded-lg border p-3 text-left transition-colors ${active ? 'border-foreground/30 bg-accent' : ''}`}
+            aria-pressed={active}
+            onClick={() => onSelect(r.label)}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <span className="text-sm font-semibold">{r.label}</span>
+              {score && <Verdict leadPct={score.leadPct} />}
+            </div>
+            {score ? (
+              <dl className="mt-2 space-y-0.5 text-xs">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">You</dt>
+                  <dd className="tabular-nums">{formatPercent(score.youPct, { signed: true })}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">S&P 500</dt>
+                  <dd className="tabular-nums">{formatPercent(score.spyPct, { signed: true })}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-muted-foreground mt-2 text-xs">Not enough history yet</p>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Ahead / behind the S&P 500, with an icon so it never relies on color alone. */
+function Verdict({ leadPct }: { leadPct: number }) {
+  if (Math.abs(leadPct) < 0.05) {
+    return <span className="text-muted-foreground bg-muted rounded-full px-2 py-0.5 text-xs font-medium">Even</span>
+  }
+  const ahead = leadPct > 0
+  const Icon = ahead ? Check : X
+  return (
+    <span
+      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${ahead ? 'bg-delta-up/10 text-delta-up' : 'bg-delta-down/10 text-delta-down'}`}
+    >
+      <Icon className="size-3" aria-hidden />
+      {ahead ? 'Ahead' : 'Behind'} by {formatPercent(Math.abs(leadPct))}
     </span>
   )
 }

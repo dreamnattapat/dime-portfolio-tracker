@@ -61,19 +61,13 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
   return (
     <div className="space-y-6">
       <p className="text-muted-foreground text-xs">
-        {lastSynced && <>Trades synced {formatDateTime(lastSynced)}</>}
+        {lastSynced && <>Synced {formatDateTime(lastSynced)}</>}
         {lastSynced && ' · '}
-        {loading
-          ? 'Fetching prices…'
-          : portfolio?.pricesAsOf
-            ? `Prices as of ${formatDateTime(portfolio.pricesAsOf)} (refreshes when you reload)`
-            : null}
+        {loading ? 'Fetching prices…' : portfolio?.pricesAsOf ? `Prices ${formatDateTime(portfolio.pricesAsOf)}` : null}
       </p>
 
       {error && (
-        <p className="text-muted-foreground text-sm">
-          Market prices are unavailable right now ({error}), so only realized figures are shown.
-        </p>
+        <p className="text-muted-foreground text-sm">Prices unavailable ({error}). Showing realized P&L only.</p>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -85,23 +79,30 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
           </p>
           <dl className="text-muted-foreground space-y-1 text-sm">
             <Row label="Realized">{formatSignedThb(analytics.realizedPnlThb)}</Row>
-            <Row label="Unrealized">{unrealized == null ? pending : formatSignedThb(unrealized)}</Row>
-          </dl>
-          {uncounted != null && Math.abs(uncounted) >= 1 && (
-            <p
-              className="text-muted-foreground text-xs"
-              title="Like Dime!, unrealized P&L is the stock price vs your average cost (excluding fees), converted at today's rate. So a change in USD/THB since you bought, and the buy fees, aren't counted. Your baht value includes them."
+            <Row
+              label="Unrealized"
+              title={
+                uncounted != null && Math.abs(uncounted) >= 1
+                  ? `As in the Dime! app: price vs average cost. Leaves out ${formatSignedThb(uncounted)} from the USD/THB move and buy fees.`
+                  : undefined
+              }
             >
-              Not counted, as in Dime!: {formatSignedThb(uncounted)} from the USD/THB move and buy fees on what you hold
-            </p>
-          )}
+              {unrealized == null ? pending : formatSignedThb(unrealized)}
+            </Row>
+          </dl>
         </StatCard>
 
         <StatCard label="Win rate">
           <p className="text-3xl font-semibold tracking-tight">{formatPercent(stats.winRatePct, { decimals: 0 })}</p>
-          <p className="text-muted-foreground text-sm">
-            {stats.wins} of {stats.rated} closed trades made money
-            {WIN_RATE_EXCLUDED.size > 0 && ` (excludes ${[...WIN_RATE_EXCLUDED].join(', ')})`}
+          <p
+            className="text-muted-foreground text-sm"
+            title={
+              WIN_RATE_EXCLUDED.size > 0
+                ? `Sells at a profit. Excludes ${[...WIN_RATE_EXCLUDED].join(', ')} (cash parking).`
+                : 'Sells at a profit.'
+            }
+          >
+            {stats.wins} of {stats.rated} trades
           </p>
         </StatCard>
       </div>
@@ -111,17 +112,8 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
       <Card>
         <CardHeader>
           <CardTitle>Your portfolio vs the S&P 500</CardTitle>
-          <CardDescription>
-            The S&P 500 line makes every buy and sell you made, for the same amount on the same day, in SPY instead. In
-            US dollars at each day's close, so the S&P 500 line moves like SPY or VOO on TradingView (currency moves
-            aren't included); dividends and the mirror's fees are left out.
-            {portfolio?.xirrUsdPct != null && portfolio.spyXirrUsdPct != null && (
-              <>
-                {' '}
-                Annualized return: you {formatPercent(portfolio.xirrUsdPct, { signed: true })}, S&P 500{' '}
-                {formatPercent(portfolio.spyXirrUsdPct, { signed: true })}.
-              </>
-            )}
+          <CardDescription title="Same amount, same day, in SPY. Dividends and the S&P 500 side's fees are left out.">
+            Your trades vs the same trades in the S&P 500, in US dollars.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -130,8 +122,7 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
               <PortfolioChart points={portfolio.timeline.pointsUsd} />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
-                  No market prices for {portfolio.timeline.approximated.join(', ')}; valued at the last price you traded
-                  at.
+                  No price for {portfolio.timeline.approximated.join(', ')}; using your last trade price.
                 </p>
               )}
             </>
@@ -146,11 +137,7 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
       <Card>
         <CardHeader>
           <CardTitle>P&L by asset</CardTitle>
-          <CardDescription>
-            Unrealized is how far the price is above or below your average cost, as in the Dime! app (average cost
-            excludes fees; converted at today's USD/THB rate). Realized is the baht you made or lost on shares already
-            sold, including fees and currency moves.
-          </CardDescription>
+          <CardDescription>Unrealized matches the Dime! app.</CardDescription>
         </CardHeader>
         <CardContent>
           <AssetsTable assets={assets} loading={loading} />
@@ -159,8 +146,8 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 
       {analytics.incompleteBasisTrades > 0 && (
         <p className="text-muted-foreground text-xs">
-          {analytics.incompleteBasisTrades} sell(s) have no matching buy in your Gmail history (bought before the emails
-          start?), so their realized P&L counts the whole sale as profit.
+          {analytics.incompleteBasisTrades} sell(s) have no matching buy in your emails, so the whole sale counts as
+          profit.
         </p>
       )}
     </div>
@@ -208,9 +195,9 @@ function StatCard({ label, className, children }: { label: string; className?: s
   )
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between gap-4" title={title}>
       <dt>{label}</dt>
       <dd className="text-foreground tabular-nums">{children}</dd>
     </div>
@@ -260,28 +247,17 @@ function PayoffCard({ stats }: { stats: TradeStats }) {
     <Card>
       <CardHeader>
         <CardTitle>Does the win rate pay off?</CardTitle>
-        <CardDescription>
-          Winning often isn't enough if the losses are bigger than the wins. The bigger your average loss is next to
-          your average win, the higher the win rate you need just to break even.
-        </CardDescription>
+        <CardDescription>The win rate you need to break even, given your average win and loss.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {comparable ? (
-          <>
-            <WinRateMeter winRatePct={winRatePct} breakEvenPct={breakEvenWinRatePct} ahead={ahead} />
-            <p className="text-sm">
-              {ahead ? 'Your wins outweigh your losses: ' : 'Your losses outweigh your wins: '}
-              you win {formatPercent(winRatePct, { decimals: 0 })} of trades, and with an average win of{' '}
-              {formatThb(avgWinThb)} against an average loss of {formatThb(avgLossThb)}, you need{' '}
-              {formatPercent(breakEvenWinRatePct, { decimals: 0 })} to break even.
-            </p>
-          </>
+          <WinRateMeter winRatePct={winRatePct} breakEvenPct={breakEvenWinRatePct} ahead={ahead} />
         ) : (
           <p className="text-muted-foreground text-sm">
             {stats.rated === 0
               ? 'No closed trades yet.'
               : stats.losses === 0
-                ? 'No losing trades yet, so there is no average loss to compare against.'
+                ? 'No losing trades yet.'
                 : 'No winning trades yet.'}
           </p>
         )}
@@ -308,12 +284,12 @@ function PayoffCard({ stats }: { stats: TradeStats }) {
   )
 }
 
+/** A labelled number; `hint` explains it on hover. */
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-0.5" title={hint}>
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="font-semibold tabular-nums">{value}</dd>
-      {hint && <dd className="text-muted-foreground text-xs">{hint}</dd>}
     </div>
   )
 }

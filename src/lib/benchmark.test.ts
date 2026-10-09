@@ -7,7 +7,7 @@ import {
   dayChange,
   monthsBefore,
   periodChange,
-  xirr,
+  scorecard,
   type TimelinePoint,
 } from './benchmark'
 import { parseChart, PriceSeries } from './prices'
@@ -29,21 +29,6 @@ const flow = (date: string, security: string, units: number, usd: number): CashF
   unitPrice: Math.abs(usd / units),
   thb: -usd * 30,
   usd: -usd,
-})
-
-describe('xirr', () => {
-  it('finds 10% for money that grew 10% in a year', () => {
-    expect(
-      xirr([
-        ['2025-01-01', -1000],
-        ['2026-01-01', 1100],
-      ]),
-    ).toBeCloseTo(0.1, 4)
-  })
-
-  it('returns null without a sign change', () => {
-    expect(xirr([['2025-01-01', 1000]])).toBeNull()
-  })
 })
 
 describe('computeTimeline', () => {
@@ -170,6 +155,34 @@ describe('dayChange', () => {
 
   it('returns null without an earlier close', () => {
     expect(dayChange([point('2026-10-10', 1000)], '2026-10-09')).toBeNull()
+  })
+})
+
+describe('scorecard', () => {
+  const point = (date: string, value: number, spy: number, bought = 0): TimelinePoint => ({
+    date,
+    value,
+    spy,
+    invested: 0,
+    bought,
+    sold: 0,
+  })
+  const points = [
+    point('2025-10-01', 1000, 1000, 1000),
+    point('2026-09-09', 1100, 1300),
+    point('2026-10-09', 1210, 1326),
+  ]
+
+  it('compares returns over the range', () => {
+    const month = scorecard(points, 1)!
+    expect(month.youPct).toBeCloseTo(10)
+    expect(month.spyPct).toBeCloseTo(2)
+    expect(month.leadPct).toBeCloseTo(8)
+    expect(scorecard(points, null)!.leadPct).toBeCloseTo(21 - 32.6)
+  })
+
+  it('returns null when the history is shorter than the range', () => {
+    expect(scorecard(points, 24)).toBeNull()
   })
 })
 

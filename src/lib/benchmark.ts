@@ -61,26 +61,6 @@ export type Timeline = {
   latestSession: string
 }
 
-export function xirr(flows: [string, number][]): number | null {
-  if (!flows.length) return null
-  const t0 = Math.min(...flows.map(([date]) => Date.parse(date)))
-  const years = flows.map(([date, amount]) => [(Date.parse(date) - t0) / (365 * 86_400_000), amount])
-  const npv = (rate: number) => years.reduce((sum, [t, amount]) => sum + amount / (1 + rate) ** t, 0)
-
-  // Bisection: robust where Newton's method can diverge.
-  let lo = -0.99
-  let hi = 10
-  let fLo = npv(lo)
-  if (fLo * npv(hi) > 0) return null // no sign change, no meaningful rate
-  for (let i = 0; i < 200; i++) {
-    const mid = (lo + hi) / 2
-    const fMid = npv(mid)
-    if (fLo * fMid <= 0) hi = mid
-    else [lo, fLo] = [mid, fMid]
-  }
-  return (lo + hi) / 2
-}
-
 /** Holdings, SPY mirror and net invested on every trading day from the first trade to today. */
 export function computeTimeline(
   flows: CashFlow[],
@@ -237,6 +217,34 @@ export function changeBetween(
   return { gain, returnPct: (growth - 1) * 100 }
 }
 
+/**
+ * Index where a range of `months` ending at the last point starts, 0 for the
+ * whole history (null months), or -1 if the history is shorter than that.
+ */
+export function rangeStart(points: TimelinePoint[], months: number | null): number {
+  if (months == null || !points.length) return 0
+  const from = monthsBefore(points.at(-1)!.date, months)
+  return points.findLastIndex((p) => p.date <= from)
+}
+
+export type Scorecard = {
+  /** Your time-weighted return over the range, %. */
+  youPct: number
+  /** The S&P 500 mirror's, %. */
+  spyPct: number
+  /** youPct - spyPct: positive means you're ahead. */
+  leadPct: number
+}
+
+/** Am I beating the S&P 500 over the last `months` (null = all history)? Null if too little history. */
+export function scorecard(points: TimelinePoint[], months: number | null): Scorecard | null {
+  const start = rangeStart(points, months)
+  const you = changeBetween(points, start)
+  const spy = changeBetween(points, start, points.length - 1, (p) => p.spy)
+  if (!you || !spy) return null
+  return { youPct: you.returnPct, spyPct: spy.returnPct, leadPct: you.returnPct - spy.returnPct }
+}
+
 export type Portfolio = {
   timeline: Timeline
   /** When the newest stock price was quoted, ms since epoch. */
@@ -244,28 +252,20 @@ export type Portfolio = {
   valueThb: number
   /** Value plus everything taken out, minus everything put in: realized + unrealized. */
   totalGainThb: number
-  /** Annualized money-weighted return in USD, %, matching the chart. */
-  xirrUsdPct: number | null
-  spyXirrUsdPct: number | null
   day: PeriodChange | null
   mom: PeriodChange | null
   yoy: PeriodChange | null
 }
 
-export function summarize(flows: CashFlow[], timeline: Timeline, pricesAsOf: number | null = null): Portfolio {
+export function summarize(timeline: Timeline, pricesAsOf: number | null = null): Portfolio {
   const last = timeline.points.at(-1)
   const value = last?.value ?? 0
   const invested = last?.invested ?? 0
-  const lastUsd = timeline.pointsUsd.at(-1)
-  const datedUsd = flows.map((f): [string, number] => [f.date, f.usd])
-  const pct = (rate: number | null) => (rate == null ? null : rate * 100)
   return {
     timeline,
     pricesAsOf,
     valueThb: value,
     totalGainThb: value - invested,
-    xirrUsdPct: lastUsd ? pct(xirr([...datedUsd, [lastUsd.date, lastUsd.value]])) : null,
-    spyXirrUsdPct: lastUsd ? pct(xirr([...datedUsd, [lastUsd.date, lastUsd.spy]])) : null,
     day: dayChange(timeline.points, timeline.latestSession),
     mom: periodChange(timeline.points, 1),
     yoy: periodChange(timeline.points, 12),
@@ -290,5 +290,5 @@ export async function buildPortfolio(flows: CashFlow[], today: string): Promise<
   // Stocks only: USD/THB trades around the clock, so it's always newer.
   const quoteTimes = [spy, ...results].map((p) => p?.latestAt ?? 0)
   const pricesAsOf = Math.max(...quoteTimes) || null
-  return summarize(flows, computeTimeline(flows, spy, fx, prices, end), pricesAsOf)
+  return summarize(computeTimeline(flows, spy, fx, prices, end), pricesAsOf)
 }

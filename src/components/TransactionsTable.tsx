@@ -55,9 +55,7 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
                 <TableCell>{formatDate(tx.receivedAt)}</TableCell>
                 <TableCell colSpan={6}>
                   <Badge variant="destructive">Couldn't read</Badge>{' '}
-                  <span className="text-muted-foreground text-xs">
-                    This PDF's layout didn't match, so it's left out of the dashboard. It's retried on every sync.
-                  </span>
+                  <span className="text-muted-foreground text-xs">Retried on next sync.</span>
                 </TableCell>
               </TableRow>
             ),

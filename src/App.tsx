@@ -75,8 +75,7 @@ export default function App() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Dime! Portfolio Tracker</h1>
         <p className="text-muted-foreground max-w-2xl">
-          Reads your Dime! trade confirmation emails and builds your transaction history. Everything runs in this
-          browser: your emails, birthdate and trades are never sent to any server except Google's.
+          Your Dime! trades from Gmail, analysed in this browser. Nothing is sent anywhere except Google.
         </p>
       </header>
 
@@ -95,10 +94,7 @@ export default function App() {
       <Card>
         <CardHeader>
           <CardTitle>Sync from Gmail</CardTitle>
-          <CardDescription>
-            Dime! locks its PDFs with your birthdate. It's used here to open them and is forgotten when you close the
-            tab.
-          </CardDescription>
+          <CardDescription>Your birthdate unlocks Dime!'s PDFs. It's never saved.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form

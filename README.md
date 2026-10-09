@@ -106,7 +106,8 @@ npm run deploy   # build + publish to Cloudflare (needs `npx wrangler login` onc
   A 70% win rate still loses money if the average loss is 3× the average win.
   Also expectancy (average P&L per trade) and profit factor.
 - **vs S&P 500:** a mirror portfolio that makes every buy/sell in SPY instead,
-  same USD amount, same day. Shown as value or gain, with annualized XIRR.
+  same USD amount, same day. Shown as gain or value, with a scorecard of
+  who's ahead over 1M, 3M, 1Y and all time.
   In US dollars, so the S&P 500 line moves like SPY/VOO on TradingView; the
   tiles above stay in baht, like the Dime! app, so their MoM/YoY also include
   the USD/THB move.
@@ -142,7 +143,7 @@ Settings → Build → Variables and secrets) when Cloudflare builds from GitHub
 | `src/lib/analytics.ts` | FIFO realized P&L, win rate, payoff stats | `analytics.py` |
 | `src/lib/prices.ts` | Daily closes via the price proxy | `market_data.py` |
 | `src/lib/assets.ts` | P&L per security, Dime!-style unrealized | |
-| `src/lib/benchmark.ts` | Daily valuation, S&P 500 mirror, XIRR, MoM/YoY | `benchmark.py` |
+| `src/lib/benchmark.ts` | Daily valuation, S&P 500 mirror, scorecard, MoM/YoY | `benchmark.py` |
 | `src/components/Dashboard.tsx` | Stat tiles, win-rate card, chart card | `dashboard.py` |
 | `worker/index.ts` | Price proxy (Cloudflare Worker → Yahoo Finance) | |
 | `src/components/ui/` | shadcn/ui components (generated; editable) | |
@@ -160,6 +161,6 @@ tools). Adjust `src/lib/dime/parser.ts` to match (add a test case in
 - [x] Parser handles the pdf.js layout (each order split over three lines)
 - [x] Port analytics: FIFO realized P&L, win rate, open positions
 - [x] Price proxy (Cloudflare Worker → Yahoo Finance; ticker symbols only)
-- [x] S&P 500 mirror portfolio, XIRR, chart (Lightweight Charts)
+- [x] S&P 500 mirror portfolio, scorecard, chart (Lightweight Charts)
 - [ ] Excel/CSV export
 - [x] Deploy to Cloudflare Workers
