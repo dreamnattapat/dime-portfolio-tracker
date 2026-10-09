@@ -209,6 +209,24 @@ export default function App() {
           </Button>
         </CardContent>
       </Card>
+
+      <footer className="text-muted-foreground space-y-1 text-xs">
+        <p>
+          <a className="underline underline-offset-2" href="/privacy">
+            Privacy policy
+          </a>
+          {' · '}
+          <a
+            className="underline underline-offset-2"
+            href="https://github.com/dreamnattapat/dime-portfolio-tracker"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Source code
+          </a>
+        </p>
+        <p>Not affiliated with Dime! or KKP Dime Securities Company Limited.</p>
+      </footer>
     </main>
   )
 }

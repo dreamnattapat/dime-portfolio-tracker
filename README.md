@@ -104,6 +104,7 @@ Settings → Build → Variables and secrets) when Cloudflare builds from GitHub
 | `src/lib/sync.ts` | Sync new emails into the database | `main.py` |
 | `src/components/PdfInspector.tsx` | Show raw PDF text + parse result | `scripts/dump_pdf_text.py` |
 | `src/components/ui/` | shadcn/ui components (generated; editable) | |
+| `privacy.html` | Privacy policy (static page at `/privacy`, required by Google) | |
 
 If Dime! changes its PDF layout, open the site, enter the birthdate, click
 **Inspect latest PDF**, and adjust `src/lib/dime/parser.ts` to match the raw
