@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CashFlow } from './analytics'
-import { computeTimeline, monthsBefore, periodChange, xirr, type TimelinePoint } from './benchmark'
+import { computeTimeline, dayChange, monthsBefore, periodChange, xirr, type TimelinePoint } from './benchmark'
 import { parseChart, PriceSeries } from './prices'
 
 const days = ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08']
@@ -106,6 +106,36 @@ describe('periodChange', () => {
 
   it('returns null when the history is shorter than the period', () => {
     expect(periodChange([point('2026-01-20', 1000), point('2026-02-09', 1100)], 1)).toBeNull()
+  })
+})
+
+describe('dayChange', () => {
+  const point = (date: string, value: number): TimelinePoint => ({
+    date,
+    value,
+    spy: 0,
+    invested: 0,
+    bought: 0,
+    sold: 0,
+  })
+  const points = [
+    point('2026-10-07', 900),
+    point('2026-10-08', 1000),
+    point('2026-10-09', 1100),
+    point('2026-10-10', 1100),
+  ]
+
+  it("is last night's session when the US market has closed", () => {
+    // Thai morning of 10 Oct: the latest session is 9 Oct, already in the points.
+    expect(dayChange(points, '2026-10-09')).toEqual({ gainThb: 100, returnPct: expect.closeTo(10) })
+  })
+
+  it("is today's session while the US market is open", () => {
+    expect(dayChange(points, '2026-10-10')!.returnPct).toBeCloseTo(0)
+  })
+
+  it('returns null without an earlier close', () => {
+    expect(dayChange([point('2026-10-10', 1000)], '2026-10-09')).toBeNull()
   })
 })
 

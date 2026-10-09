@@ -1,12 +1,13 @@
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { DayMood } from '@/components/DayMood'
 import { PortfolioChart } from '@/components/PortfolioChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
 import { buildPortfolio, type PeriodChange, type Portfolio } from '@/lib/benchmark'
 import type { Transaction } from '@/lib/db'
-import { formatNumber, formatPercent, formatSignedThb, formatThb, localToday } from '@/lib/format'
+import { formatDate, formatNumber, formatPercent, formatSignedThb, formatThb, localToday } from '@/lib/format'
 
 /** The latest price lookup, and which trades it was for. */
 type Loaded = { flowsKey: string; portfolio: Portfolio | null; error: string | null }
@@ -52,13 +53,7 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Portfolio value">
-          <p className="text-3xl font-semibold tracking-tight">{portfolio ? formatThb(portfolio.valueThb) : pending}</p>
-          <div className="space-y-1 text-sm">
-            <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} />
-            <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} />
-          </div>
-        </StatCard>
+        <ValueCard portfolio={portfolio} pending={pending} />
 
         <StatCard label="Total P&L">
           <p className="text-3xl font-semibold tracking-tight">
@@ -125,9 +120,47 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
   )
 }
 
-function StatCard({ label, children }: { label: string; children: ReactNode }) {
+const TWR_HINT =
+  "% is the time-weighted return, so money you add or withdraw doesn't count as growth. ฿ is the change in value minus money added."
+
+function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pending: string }) {
+  const [plays, setPlays] = useState(0)
+  const day = portfolio?.day
+  const mood = !day || day.returnPct === 0 ? null : day.returnPct > 0 ? 'up' : 'down'
+
   return (
-    <Card className="gap-3">
+    <StatCard label="Portfolio value" className="relative overflow-hidden">
+      <p className="text-3xl font-semibold tracking-tight">{portfolio ? formatThb(portfolio.valueThb) : pending}</p>
+      <div className="space-y-1 text-sm">
+        <Delta
+          label="1D"
+          change={day}
+          pending={!portfolio}
+          title={`The latest US trading day${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} vs the close before it, including the USD/THB move. ${TWR_HINT}`}
+        >
+          {mood && (
+            <button
+              className="ml-auto text-base leading-none transition-transform hover:scale-125"
+              onClick={() => setPlays((n) => n + 1)}
+              aria-label="Play the animation again"
+              title="Play again"
+            >
+              {mood === 'up' ? '🚀' : '🌧️'}
+            </button>
+          )}
+        </Delta>
+        <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
+        <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
+      </div>
+      {/* Plays once when the day's change is known, and again on click. */}
+      {mood && <DayMood key={`${mood}-${plays}`} mood={mood} />}
+    </StatCard>
+  )
+}
+
+function StatCard({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <Card className={`gap-3 ${className ?? ''}`}>
       <CardHeader>
         <CardDescription>{label}</CardDescription>
       </CardHeader>
@@ -146,7 +179,19 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** A period's return with an arrow, so direction never relies on color alone. */
-function Delta({ label, change, pending }: { label: string; change?: PeriodChange | null; pending: boolean }) {
+function Delta({
+  label,
+  change,
+  pending,
+  title,
+  children,
+}: {
+  label: string
+  change?: PeriodChange | null
+  pending: boolean
+  title: string
+  children?: ReactNode
+}) {
   if (!change) {
     return (
       <p className="text-muted-foreground">
@@ -157,16 +202,14 @@ function Delta({ label, change, pending }: { label: string; change?: PeriodChang
   const up = change.returnPct >= 0
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (
-    <p
-      className="flex items-center gap-1.5"
-      title="% is the time-weighted return, so money you add or withdraw doesn't count as growth. ฿ is the change in value minus money added."
-    >
+    <p className="flex items-center gap-1.5" title={title}>
       <span className="text-muted-foreground w-9">{label}</span>
       <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
         <Arrow className="size-4" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
       <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gainThb)})</span>
+      {children}
     </p>
   )
 }

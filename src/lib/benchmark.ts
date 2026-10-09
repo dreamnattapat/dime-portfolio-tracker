@@ -38,6 +38,8 @@ export type Timeline = {
   points: TimelinePoint[]
   /** Securities with no market history (e.g. delisted), valued at their last trade price. */
   approximated: string[]
+  /** The most recent US trading day with a price, ISO date (it can be today's, still trading). */
+  latestSession: string
 }
 
 export function xirr(flows: [string, number][]): number | null {
@@ -68,7 +70,7 @@ export function computeTimeline(
   prices: Map<string, PriceSeries | null>,
   today: string,
 ): Timeline {
-  if (!flows.length) return { points: [], approximated: [] }
+  if (!flows.length) return { points: [], approximated: [], latestSession: '' }
   const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
 
   // Units in today's split-adjusted shares, so they pair with adjusted closes.
@@ -120,7 +122,7 @@ export function computeTimeline(
       sold,
     })
   }
-  return { points, approximated: [...approximated].sort() }
+  return { points, approximated: [...approximated].sort(), latestSession: spy.dates.at(-1)! }
 }
 
 /** ISO date `months` months before `iso`, clamped to the month's last day (31 Mar -> 28/29 Feb). */
@@ -141,17 +143,37 @@ export type PeriodChange = {
 
 /**
  * How the portfolio did over the last `months` months, or null if the history
- * is shorter than that. Uses the time-weighted return, as brokers do, so
- * adding money doesn't count as growth: each day's return is end value plus
- * sells over start value plus buys (buys at the open, sells at the close).
+ * is shorter than that.
  */
 export function periodChange(points: TimelinePoint[], months: number): PeriodChange | null {
   if (!points.length) return null
   const from = monthsBefore(points.at(-1)!.date, months)
-  let start = -1
-  for (let j = 0; j < points.length && points[j].date <= from; j++) start = j
-  if (start < 0) return null
+  return changeSince(
+    points,
+    points.findLastIndex((p) => p.date <= from),
+  )
+}
 
+/**
+ * The latest US trading day's move: from the close before `latestSession` to
+ * now. In Thailand's morning the US market has closed, so "today" is still
+ * last night's session, as in the Dime! app.
+ */
+export function dayChange(points: TimelinePoint[], latestSession: string): PeriodChange | null {
+  return changeSince(
+    points,
+    points.findLastIndex((p) => p.date < latestSession),
+  )
+}
+
+/**
+ * Change from points[start] to the last point. Uses the time-weighted return,
+ * as brokers do, so adding money doesn't count as growth: each day's return is
+ * end value plus sells over start value plus buys (buys at the open, sells at
+ * the close).
+ */
+function changeSince(points: TimelinePoint[], start: number): PeriodChange | null {
+  if (start < 0 || start === points.length - 1) return null
   let growth = 1
   let gainThb = 0
   for (let j = start + 1; j < points.length; j++) {
@@ -174,6 +196,7 @@ export type Portfolio = {
   /** Annualized money-weighted return, %. */
   xirrPct: number | null
   spyXirrPct: number | null
+  day: PeriodChange | null
   mom: PeriodChange | null
   yoy: PeriodChange | null
 }
@@ -193,6 +216,7 @@ export function summarize(flows: CashFlow[], timeline: Timeline): Portfolio {
     spyGainThb: spyValue - invested,
     xirrPct: last ? pct(xirr([...dated, [last.date, value]])) : null,
     spyXirrPct: last ? pct(xirr([...dated, [last.date, spyValue]])) : null,
+    day: dayChange(timeline.points, timeline.latestSession),
     mom: periodChange(timeline.points, 1),
     yoy: periodChange(timeline.points, 12),
   }

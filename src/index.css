@@ -143,3 +143,70 @@
     @apply bg-background text-foreground;
     }
 }
+/* DayMood: the 1-day change animation over the portfolio value card. */
+.mood-overlay {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    animation: mood-fade 3.6s ease-in forwards;
+}
+.mood-rocket {
+    position: absolute;
+    font-size: 2.5rem;
+    animation: mood-fly ease-in forwards;
+}
+.mood-sparkle,
+.mood-star {
+    position: absolute;
+    opacity: 0;
+    animation: mood-pop 0.9s ease-out forwards;
+}
+.mood-star {
+    font-size: 0.9rem;
+}
+.mood-cloud {
+    position: absolute;
+    top: 0.25rem;
+    font-size: 2.5rem;
+    animation: mood-drift 3.6s ease-out forwards;
+}
+.mood-drop {
+    position: absolute;
+    top: -12%;
+    width: 2px;
+    height: 14px;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, transparent, var(--series-you));
+    opacity: 0.6;
+    animation-name: mood-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: 3;
+}
+
+@keyframes mood-fade {
+    0%, 80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+@keyframes mood-fly {
+    0% { left: 2%; bottom: -25%; transform: scale(0.7); }
+    100% { left: 92%; bottom: 115%; transform: scale(1.2); }
+}
+@keyframes mood-pop {
+    0% { opacity: 0; transform: scale(0.2) rotate(0deg); }
+    30% { opacity: 1; transform: scale(1.2) rotate(20deg); }
+    100% { opacity: 0; transform: scale(0.6) rotate(45deg); }
+}
+@keyframes mood-drift {
+    0% { left: -20%; }
+    35%, 100% { left: 70%; }
+}
+@keyframes mood-fall {
+    to { top: 112%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mood-overlay {
+        display: none;
+    }
+}
