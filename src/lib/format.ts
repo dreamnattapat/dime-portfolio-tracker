@@ -23,25 +23,30 @@ export function formatDate(iso: string | null | undefined): string {
   return dateFormat.format(new Date(iso.length === 10 ? `${iso}T00:00:00` : iso))
 }
 
-const thbFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
+const wholeFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 const compactFormat = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 
-/** 1234567.8 -> "฿1,234,568"; negative as "-฿1,234,568". */
-export function formatThb(value: number | null | undefined): string {
+export type Currency = '฿' | '$'
+
+/** 1234567.8 -> "฿1,234,568"; negative as "-฿1,234,568". Whole units. */
+export function formatMoney(value: number | null | undefined, currency: Currency): string {
   if (value == null) return '—'
-  return `${value < 0 ? '-' : ''}฿${thbFormat.format(Math.abs(value))}`
+  return `${value < 0 ? '-' : ''}${currency}${wholeFormat.format(Math.abs(value))}`
 }
 
-/** Like formatThb, with "+" on gains. */
-export function formatSignedThb(value: number | null | undefined): string {
+/** Like formatMoney, with "+" on gains. */
+export function formatSignedMoney(value: number | null | undefined, currency: Currency): string {
   if (value == null) return '—'
-  return value > 0 ? `+${formatThb(value)}` : formatThb(value)
+  return value > 0 ? `+${formatMoney(value, currency)}` : formatMoney(value, currency)
 }
 
-/** 1234567 -> "฿1.2M", for chart axes. */
-export function formatCompactThb(value: number): string {
-  return `${value < 0 ? '-' : ''}฿${compactFormat.format(Math.abs(value))}`
+/** 1234567 -> "$1.2M", for chart axes. */
+export function formatCompactMoney(value: number, currency: Currency): string {
+  return `${value < 0 ? '-' : ''}${currency}${compactFormat.format(Math.abs(value))}`
 }
+
+export const formatThb = (value: number | null | undefined) => formatMoney(value, '฿')
+export const formatSignedThb = (value: number | null | undefined) => formatSignedMoney(value, '฿')
 
 export function formatPercent(value: number | null | undefined, { signed = false, decimals = 1 } = {}): string {
   if (value == null) return '—'

@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { changeBetween, monthsBefore, type TimelinePoint } from '@/lib/benchmark'
-import { formatCompactThb, formatDate, formatPercent, formatSignedThb, formatThb } from '@/lib/format'
+import { formatCompactMoney, formatDate, formatMoney, formatPercent, formatSignedMoney } from '@/lib/format'
 
 const LINES = {
   you: { color: '--series-you', dashed: false },
@@ -64,7 +64,7 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/** Your portfolio vs the S&P 500 mirror, day by day. */
+/** Your portfolio vs the S&P 500 mirror, day by day. Expects USD points. */
 export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -93,7 +93,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
       crosshair: { mode: CrosshairMode.Magnet, horzLine: { visible: false, labelVisible: false } },
-      localization: { priceFormatter: formatCompactThb },
+      localization: { priceFormatter: (value: number) => formatCompactMoney(value, '$') },
       handleScroll: false,
       handleScale: false,
     })
@@ -175,7 +175,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                 </svg>
                 {s.label}
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">{shown ? formatThb(s.of(shown)) : '—'}</dd>
+              <dd className="text-sm font-semibold tabular-nums">{shown ? formatMoney(s.of(shown), '$') : '—'}</dd>
               <dd className="text-xs">
                 <RangeChange points={points} start={start} end={end} line={s.key} />
               </dd>
@@ -237,7 +237,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                   <TableCell>{formatDate(p.date)}</TableCell>
                   {series.map((s) => (
                     <TableCell key={s.key} className="text-right tabular-nums">
-                      {formatThb(s.of(p))}
+                      {formatMoney(s.of(p), '$')}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -271,8 +271,8 @@ function RangeChange({
         {Math.abs(added) < 1
           ? 'No money added'
           : added > 0
-            ? `${formatThb(added)} added`
-            : `${formatThb(-added)} taken out`}
+            ? `${formatMoney(added, '$')} added`
+            : `${formatMoney(-added, '$')} taken out`}
       </span>
     )
   }
@@ -286,7 +286,7 @@ function RangeChange({
         <Arrow className="size-3.5" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
-      <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gainThb)})</span>
+      <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '$')})</span>
     </span>
   )
 }

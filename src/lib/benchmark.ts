@@ -19,18 +19,19 @@ import { fetchPrices, PriceSeries, yahooSymbol } from '@/lib/prices'
 export const BENCHMARK_SYMBOL = 'SPY'
 const FX_SYMBOL = 'THB=X' // THB per 1 USD
 
+/** One day, with every amount in one currency (THB or USD, see Timeline). */
 export type TimelinePoint = {
   /** ISO YYYY-MM-DD */
   date: string
-  /** Market value of the holdings, THB. */
+  /** Market value of the holdings. */
   value: number
-  /** Market value of the SPY mirror, THB. */
+  /** Market value of the SPY mirror. */
   spy: number
-  /** Money put in minus money taken out so far, THB. */
+  /** Money put in minus money taken out so far. */
   invested: number
-  /** Cash spent on buys this day, THB. */
+  /** Cash spent on buys this day. */
   bought: number
-  /** Cash received from sells this day, THB. */
+  /** Cash received from sells this day. */
   sold: number
 }
 
@@ -46,7 +47,10 @@ export type Holding = {
 }
 
 export type Timeline = {
+  /** In THB, at each day's USD/THB rate: what the account is worth in baht. */
   points: TimelinePoint[]
+  /** In USD: the stocks' own performance, without currency moves (as TradingView shows it). */
+  pointsUsd: TimelinePoint[]
   /** What's held on the last day, valued at the latest prices. */
   holdings: Holding[]
   /** The latest USD/THB rate. */
@@ -85,7 +89,9 @@ export function computeTimeline(
   prices: Map<string, PriceSeries | null>,
   today: string,
 ): Timeline {
-  if (!flows.length) return { points: [], holdings: [], usdThb: fx.latest, approximated: [], latestSession: '' }
+  if (!flows.length) {
+    return { points: [], pointsUsd: [], holdings: [], usdThb: fx.latest, approximated: [], latestSession: '' }
+  }
   const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
 
   // Units in today's split-adjusted shares, so they pair with adjusted closes.
@@ -93,22 +99,29 @@ export function computeTimeline(
   const lastTradePrice = new Map<string, number>()
   const approximated = new Set<string>()
   let cashThb = 0
+  let cashUsd = 0
   let spyShares = 0
   let i = 0
   const points: TimelinePoint[] = []
+  const pointsUsd: TimelinePoint[] = []
   const holdings: Holding[] = []
 
   for (const day of days) {
     let bought = 0
     let sold = 0
+    let boughtUsd = 0
+    let soldUsd = 0
     for (; i < flows.length && flows[i].date <= day; i++) {
       const f = flows[i]
       const factor = prices.get(f.security)?.splitFactorAfter(f.date) ?? 1
       units.set(f.security, (units.get(f.security) ?? 0) + f.units * factor)
       if (f.unitPrice) lastTradePrice.set(f.security, f.unitPrice / factor)
       cashThb += f.thb
+      cashUsd += f.usd
       if (f.thb < 0) bought -= f.thb
       else sold += f.thb
+      if (f.usd < 0) boughtUsd -= f.usd
+      else soldUsd += f.usd
       spyShares += -f.usd / spy.on(f.date)
     }
 
@@ -134,18 +147,21 @@ export function computeTimeline(
       }
     }
 
-    points.push({
+    const spyUsd = spyShares * (isToday ? spy.latest : spy.on(day))
+    points.push({ date: day, value: holdingsUsd * usdThb, spy: spyUsd * usdThb, invested: -cashThb, bought, sold })
+    pointsUsd.push({
       date: day,
-      value: holdingsUsd * usdThb,
-      spy: spyShares * (isToday ? spy.latest : spy.on(day)) * usdThb,
-      invested: -cashThb,
-      bought,
-      sold,
+      value: holdingsUsd,
+      spy: spyUsd,
+      invested: -cashUsd,
+      bought: boughtUsd,
+      sold: soldUsd,
     })
   }
   holdings.sort((a, b) => b.valueThb - a.valueThb)
   return {
     points,
+    pointsUsd,
     holdings,
     usdThb: fx.latest,
     approximated: [...approximated].sort(),
@@ -163,8 +179,8 @@ export function monthsBefore(iso: string, months: number): string {
 }
 
 export type PeriodChange = {
-  /** Change in value not explained by money put in or taken out, THB. */
-  gainThb: number
+  /** Change in value not explained by money put in or taken out, in the points' currency. */
+  gain: number
   /** Time-weighted return: ignores when and how much money was added. */
   returnPct: number
 }
@@ -209,16 +225,16 @@ export function changeBetween(
 ): PeriodChange | null {
   if (start < 0 || start >= end) return null
   let growth = 1
-  let gainThb = 0
+  let gain = 0
   for (let j = start + 1; j <= end; j++) {
     const prev = valueOf(points[j - 1])
     const p = points[j]
     const value = valueOf(p)
-    gainThb += value - prev - p.bought + p.sold
+    gain += value - prev - p.bought + p.sold
     const base = prev + p.bought
     if (base > 1) growth *= (value + p.sold) / base // skip days fully in cash
   }
-  return { gainThb, returnPct: (growth - 1) * 100 }
+  return { gain, returnPct: (growth - 1) * 100 }
 }
 
 export type Portfolio = {
@@ -228,11 +244,9 @@ export type Portfolio = {
   valueThb: number
   /** Value plus everything taken out, minus everything put in: realized + unrealized. */
   totalGainThb: number
-  spyValueThb: number
-  spyGainThb: number
-  /** Annualized money-weighted return, %. */
-  xirrPct: number | null
-  spyXirrPct: number | null
+  /** Annualized money-weighted return in USD, %, matching the chart. */
+  xirrUsdPct: number | null
+  spyXirrUsdPct: number | null
   day: PeriodChange | null
   mom: PeriodChange | null
   yoy: PeriodChange | null
@@ -241,19 +255,17 @@ export type Portfolio = {
 export function summarize(flows: CashFlow[], timeline: Timeline, pricesAsOf: number | null = null): Portfolio {
   const last = timeline.points.at(-1)
   const value = last?.value ?? 0
-  const spyValue = last?.spy ?? 0
   const invested = last?.invested ?? 0
-  const dated = flows.map((f): [string, number] => [f.date, f.thb])
+  const lastUsd = timeline.pointsUsd.at(-1)
+  const datedUsd = flows.map((f): [string, number] => [f.date, f.usd])
   const pct = (rate: number | null) => (rate == null ? null : rate * 100)
   return {
     timeline,
     pricesAsOf,
     valueThb: value,
     totalGainThb: value - invested,
-    spyValueThb: spyValue,
-    spyGainThb: spyValue - invested,
-    xirrPct: last ? pct(xirr([...dated, [last.date, value]])) : null,
-    spyXirrPct: last ? pct(xirr([...dated, [last.date, spyValue]])) : null,
+    xirrUsdPct: lastUsd ? pct(xirr([...datedUsd, [lastUsd.date, lastUsd.value]])) : null,
+    spyXirrUsdPct: lastUsd ? pct(xirr([...datedUsd, [lastUsd.date, lastUsd.spy]])) : null,
     day: dayChange(timeline.points, timeline.latestSession),
     mom: periodChange(timeline.points, 1),
     yoy: periodChange(timeline.points, 12),

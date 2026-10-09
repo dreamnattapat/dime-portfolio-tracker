@@ -107,6 +107,9 @@ npm run deploy   # build + publish to Cloudflare (needs `npx wrangler login` onc
   Also expectancy (average P&L per trade) and profit factor.
 - **vs S&P 500:** a mirror portfolio that makes every buy/sell in SPY instead,
   same USD amount, same day. Shown as value or gain, with annualized XIRR.
+  In US dollars, so the S&P 500 line moves like SPY/VOO on TradingView; the
+  tiles above stay in baht, like the Dime! app, so their MoM/YoY also include
+  the USD/THB move.
   Units are converted to split-adjusted shares, so stock splits (which Dime!
   sends no email for) don't break the valuation.
 

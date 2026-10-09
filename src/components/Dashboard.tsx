@@ -112,13 +112,14 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
         <CardHeader>
           <CardTitle>Your portfolio vs the S&P 500</CardTitle>
           <CardDescription>
-            The S&P 500 line makes every buy and sell you made, for the same amount on the same day, in SPY instead.
-            Both are valued in THB at each day's close; dividends and the mirror's fees are left out.
-            {portfolio?.xirrPct != null && portfolio.spyXirrPct != null && (
+            The S&P 500 line makes every buy and sell you made, for the same amount on the same day, in SPY instead. In
+            US dollars at each day's close, so the S&P 500 line moves like SPY or VOO on TradingView (currency moves
+            aren't included); dividends and the mirror's fees are left out.
+            {portfolio?.xirrUsdPct != null && portfolio.spyXirrUsdPct != null && (
               <>
                 {' '}
-                Annualized return: you {formatPercent(portfolio.xirrPct, { signed: true })}, S&P 500{' '}
-                {formatPercent(portfolio.spyXirrPct, { signed: true })}.
+                Annualized return: you {formatPercent(portfolio.xirrUsdPct, { signed: true })}, S&P 500{' '}
+                {formatPercent(portfolio.spyXirrUsdPct, { signed: true })}.
               </>
             )}
           </CardDescription>
@@ -126,7 +127,7 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
         <CardContent>
           {portfolio ? (
             <>
-              <PortfolioChart points={portfolio.timeline.points} />
+              <PortfolioChart points={portfolio.timeline.pointsUsd} />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
                   No market prices for {portfolio.timeline.approximated.join(', ')}; valued at the last price you traded
@@ -244,7 +245,7 @@ function Delta({
         <Arrow className="size-4" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
-      <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gainThb)})</span>
+      <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gain)})</span>
     </p>
   )
 }

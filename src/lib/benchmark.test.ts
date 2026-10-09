@@ -62,6 +62,17 @@ describe('computeTimeline', () => {
     expect(points[0].bought).toBe(3000)
   })
 
+  it('also tracks everything in USD, without the exchange rate', () => {
+    const fxMoves = series('THB=X', [30, 31, 32, 33], 34)
+    const prices = new Map([['AAPL', series('AAPL', [10, 12, 12, 15], 20)]])
+    const { pointsUsd } = computeTimeline([flow('2026-01-05', 'AAPL', 10, 100)], spy, fxMoves, prices, '2026-01-09')
+    expect(pointsUsd.map((p) => p.value)).toEqual([100, 120, 120, 150, 200])
+    expect(pointsUsd.map((p) => p.spy)).toEqual([100, 100, 110, 110, 120])
+    expect(pointsUsd[0]).toMatchObject({ invested: 100, bought: 100, sold: 0 })
+    // The S&P 500 mirror's USD return is SPY's own: 100 -> 120.
+    expect(changeBetween(pointsUsd, 0, 4, (p) => p.spy)!.returnPct).toBeCloseTo(20)
+  })
+
   it('keeps valuing a holding correctly after a split', () => {
     // 2:1 split on day 3; Yahoo's history is adjusted, so day 1-2 closes are halved.
     const prices = new Map([['NVDA', series('NVDA', [50, 50, 50, 50], 50, [['2026-01-07', 2]])]])
@@ -109,7 +120,7 @@ describe('periodChange', () => {
       ],
       1,
     )!
-    expect(change.gainThb).toBeCloseTo(320)
+    expect(change.gain).toBeCloseTo(320)
     expect(change.returnPct).toBeCloseTo(21) // 1.1 * 1.0 * 1.1
   })
 
@@ -123,8 +134,8 @@ describe('periodChange', () => {
       { ...point('2026-01-09', 1000), spy: 1000 },
       { ...point('2026-02-02', 2100, 1000), spy: 2200 },
     ]
-    expect(changeBetween(points, 0, 1, (p) => p.spy)).toEqual({ gainThb: 200, returnPct: expect.closeTo(10) })
-    expect(changeBetween(points, 0, 1)).toEqual({ gainThb: 100, returnPct: expect.closeTo(5) })
+    expect(changeBetween(points, 0, 1, (p) => p.spy)).toEqual({ gain: 200, returnPct: expect.closeTo(10) })
+    expect(changeBetween(points, 0, 1)).toEqual({ gain: 100, returnPct: expect.closeTo(5) })
   })
 
   it('returns null when the history is shorter than the period', () => {
@@ -150,7 +161,7 @@ describe('dayChange', () => {
 
   it("is last night's session when the US market has closed", () => {
     // Thai morning of 10 Oct: the latest session is 9 Oct, already in the points.
-    expect(dayChange(points, '2026-10-09')).toEqual({ gainThb: 100, returnPct: expect.closeTo(10) })
+    expect(dayChange(points, '2026-10-09')).toEqual({ gain: 100, returnPct: expect.closeTo(10) })
   })
 
   it("is today's session while the US market is open", () => {
