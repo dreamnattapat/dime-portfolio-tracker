@@ -52,13 +52,19 @@ Gmail API is already enabled there. No billing is needed.
    ```
    The client ID is public (it ships in the page). There's no client secret in
    this setup.
-5. Under [Audience](https://console.cloud.google.com/auth/audience), keep the
-   app in **Testing** and add each user's Gmail address as a test user (up to
-   100). They'll see an "unverified app" warning, which is expected.
+5. Under [Audience](https://console.cloud.google.com/auth/audience), click
+   **Publish app** (status **In production**, unverified). Anyone with a Google
+   account can then sign in, after Google's "unverified app" warning, which the
+   site explains next to the sign-in button. Google caps unverified apps at
+   **100 new users in total**.
 
-Going public later needs Google's restricted-scope verification (privacy
-policy, demo video). Because no Gmail data reaches a server, the app has a
-strong case for exemption from the paid annual security assessment (CASA).
+   The alternative is to stay in **Testing** and add each user's Gmail address
+   as a test user (up to 100).
+
+Removing the warning and the cap needs Google's restricted-scope verification:
+a domain you own, a homepage and privacy policy on it, a demo video, and a few
+weeks of review. Because no Gmail data reaches a server, the app has a strong
+case for exemption from the paid annual security assessment (CASA).
 
 ## Development
 

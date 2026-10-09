@@ -111,6 +111,41 @@ export default function App() {
             </Button>
           </form>
 
+          {!connected && (
+            <details className="text-muted-foreground text-sm">
+              <summary className="cursor-pointer">Google says "Google hasn't verified this app"?</summary>
+              <div className="mt-2 space-y-2">
+                <p>
+                  That's expected: this app hasn't finished Google's review yet. To continue, click{' '}
+                  <strong>Advanced</strong>, then <strong>Go to … (unsafe)</strong>, and allow reading your Gmail.
+                </p>
+                <p>
+                  The access is read-only and stays in this browser: emails are fetched straight from Google into this
+                  page, and the site's security settings stop the page from sending them anywhere else. You can check
+                  the{' '}
+                  <a
+                    className="underline underline-offset-2"
+                    href="https://github.com/dreamnattapat/dime-portfolio-tracker"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    source code
+                  </a>
+                  , and remove access any time from your{' '}
+                  <a
+                    className="underline underline-offset-2"
+                    href="https://myaccount.google.com/connections"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google account
+                  </a>
+                  .
+                </p>
+              </div>
+            </details>
+          )}
+
           {connected && (
             <p className="text-muted-foreground text-sm">
               Connected to Gmail (read-only).{' '}
