@@ -17,6 +17,8 @@ export type SyncProgress = {
   done: number
   added: number
   failed: number
+  /** Why the first failed email failed, so the user has something to report. */
+  firstError?: string
 }
 
 // Parallel email downloads; small enough to stay well inside Gmail's rate limits.
@@ -64,6 +66,7 @@ export async function syncFromGmail(
       }
       console.error(`Failed to process message ${messageId}`, error)
       progress.failed++
+      progress.firstError ??= error instanceof Error ? error.message : String(error)
     } finally {
       progress.done++
       onProgress({ ...progress })

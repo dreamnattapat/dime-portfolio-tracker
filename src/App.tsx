@@ -164,6 +164,9 @@ export default function App() {
                   : `${progress.done} of ${progress.total} new emails read · ${progress.added} added` +
                     (progress.failed ? ` · ${progress.failed} failed (will retry next sync)` : '')}
               </p>
+              {progress.firstError && (
+                <p className="text-destructive text-sm">First error: {progress.firstError}</p>
+              )}
             </div>
           )}
 

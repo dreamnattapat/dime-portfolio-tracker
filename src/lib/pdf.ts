@@ -6,7 +6,10 @@
  * pdfplumber gave the Python version, which the parser regexes expect.
  */
 import type { TextItem } from 'pdfjs-dist/types/src/display/api'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// The legacy build bundles polyfills for the newest JS features pdf.js uses
+// (e.g. Map.getOrInsertComputed). Without them every PDF fails on browsers
+// that lack those features, such as iPhone Safari.
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 
 /** Thrown when the birthdate doesn't open the PDF. */
 export class WrongPasswordError extends Error {
@@ -18,7 +21,7 @@ export class WrongPasswordError extends Error {
 
 // Loaded on first use so the (large) PDF engine isn't in the initial page load.
 async function loadPdfjs() {
-  const pdfjs = await import('pdfjs-dist')
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
   return pdfjs
 }
