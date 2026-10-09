@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { clearLocalData, db } from '@/lib/db'
+import { clearLocalData, db, getLastSyncedAt, setLastSyncedAt } from '@/lib/db'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
 
@@ -22,6 +22,16 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
+  const [syncedAt, setSyncedAt] = useState(getLastSyncedAt)
+  // Before sync times were recorded: when the newest email was read.
+  const lastEmailReadAt = useLiveQuery(async () => {
+    const messages = await db.processedMessages.toArray()
+    return messages.reduce<string | null>(
+      (latest, m) => (!latest || m.processedAt > latest ? m.processedAt : latest),
+      null,
+    )
+  }, [])
+  const lastSynced = syncedAt ?? lastEmailReadAt ?? null
   const unparsedCount = transactions?.filter((tx) => tx.parseStatus === 'unparsed').length ?? 0
 
   useEffect(() => {
@@ -38,6 +48,9 @@ export default function App() {
       const accessToken = await getAccessToken()
       setConnected(true)
       await syncFromGmail(accessToken, pdfPassword, setProgress)
+      const now = new Date().toISOString()
+      setLastSyncedAt(now)
+      setSyncedAt(now)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -53,6 +66,7 @@ export default function App() {
   async function handleClear() {
     if (!confirm('Delete all transactions stored in this browser? You can re-sync them from Gmail any time.')) return
     await clearLocalData()
+    setSyncedAt(null)
     setProgress(null)
   }
 
@@ -179,7 +193,9 @@ export default function App() {
         </CardContent>
       </Card>
 
-      {transactions && transactions.length > unparsedCount && <Dashboard transactions={transactions} />}
+      {transactions && transactions.length > unparsedCount && (
+        <Dashboard transactions={transactions} lastSynced={lastSynced} />
+      )}
 
       <Card>
         <CardHeader>

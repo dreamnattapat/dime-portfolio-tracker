@@ -32,9 +32,31 @@ db.version(1).stores({
   processedMessages: 'id',
 })
 
+// When the last sync finished. A convenience only, so it lives in
+// localStorage rather than the database, and may be missing.
+const LAST_SYNC_KEY = 'lastSyncedAt'
+
+export function getLastSyncedAt(): string | null {
+  try {
+    return localStorage.getItem(LAST_SYNC_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setLastSyncedAt(iso: string | null): void {
+  try {
+    if (iso) localStorage.setItem(LAST_SYNC_KEY, iso)
+    else localStorage.removeItem(LAST_SYNC_KEY)
+  } catch {
+    // Storage blocked (e.g. private browsing): the timestamp just isn't remembered.
+  }
+}
+
 export async function clearLocalData(): Promise<void> {
   await db.transaction('rw', db.transactions, db.processedMessages, async () => {
     await db.transactions.clear()
     await db.processedMessages.clear()
   })
+  setLastSyncedAt(null)
 }

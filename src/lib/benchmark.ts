@@ -176,7 +176,7 @@ export type PeriodChange = {
 export function periodChange(points: TimelinePoint[], months: number): PeriodChange | null {
   if (!points.length) return null
   const from = monthsBefore(points.at(-1)!.date, months)
-  return changeSince(
+  return changeBetween(
     points,
     points.findLastIndex((p) => p.date <= from),
   )
@@ -188,34 +188,43 @@ export function periodChange(points: TimelinePoint[], months: number): PeriodCha
  * last night's session, as in the Dime! app.
  */
 export function dayChange(points: TimelinePoint[], latestSession: string): PeriodChange | null {
-  return changeSince(
+  return changeBetween(
     points,
     points.findLastIndex((p) => p.date < latestSession),
   )
 }
 
 /**
- * Change from points[start] to the last point. Uses the time-weighted return,
- * as brokers do, so adding money doesn't count as growth: each day's return is
- * end value plus sells over start value plus buys (buys at the open, sells at
- * the close).
+ * Change from points[start] to points[end] (default: the last). Uses the
+ * time-weighted return, as brokers do, so adding money doesn't count as
+ * growth: each day's return is end value plus sells over start value plus buys
+ * (buys at the open, sells at the close). `valueOf` picks the series: your
+ * holdings by default, or the S&P 500 mirror, which has the same cash flows.
  */
-function changeSince(points: TimelinePoint[], start: number): PeriodChange | null {
-  if (start < 0 || start === points.length - 1) return null
+export function changeBetween(
+  points: TimelinePoint[],
+  start: number,
+  end = points.length - 1,
+  valueOf: (p: TimelinePoint) => number = (p) => p.value,
+): PeriodChange | null {
+  if (start < 0 || start >= end) return null
   let growth = 1
   let gainThb = 0
-  for (let j = start + 1; j < points.length; j++) {
-    const prev = points[j - 1]
+  for (let j = start + 1; j <= end; j++) {
+    const prev = valueOf(points[j - 1])
     const p = points[j]
-    gainThb += p.value - prev.value - p.bought + p.sold
-    const base = prev.value + p.bought
-    if (base > 1) growth *= (p.value + p.sold) / base // skip days fully in cash
+    const value = valueOf(p)
+    gainThb += value - prev - p.bought + p.sold
+    const base = prev + p.bought
+    if (base > 1) growth *= (value + p.sold) / base // skip days fully in cash
   }
   return { gainThb, returnPct: (growth - 1) * 100 }
 }
 
 export type Portfolio = {
   timeline: Timeline
+  /** When the newest stock price was quoted, ms since epoch. */
+  pricesAsOf: number | null
   valueThb: number
   /** Value plus everything taken out, minus everything put in: realized + unrealized. */
   totalGainThb: number
@@ -229,7 +238,7 @@ export type Portfolio = {
   yoy: PeriodChange | null
 }
 
-export function summarize(flows: CashFlow[], timeline: Timeline): Portfolio {
+export function summarize(flows: CashFlow[], timeline: Timeline, pricesAsOf: number | null = null): Portfolio {
   const last = timeline.points.at(-1)
   const value = last?.value ?? 0
   const spyValue = last?.spy ?? 0
@@ -238,6 +247,7 @@ export function summarize(flows: CashFlow[], timeline: Timeline): Portfolio {
   const pct = (rate: number | null) => (rate == null ? null : rate * 100)
   return {
     timeline,
+    pricesAsOf,
     valueThb: value,
     totalGainThb: value - invested,
     spyValueThb: spyValue,
@@ -265,5 +275,8 @@ export async function buildPortfolio(flows: CashFlow[], today: string): Promise<
     ...securities.map((s) => fetchPrices(yahooSymbol(s), start, end).catch(() => null)),
   ])
   const prices = new Map(securities.map((s, i) => [s, results[i]]))
-  return summarize(flows, computeTimeline(flows, spy, fx, prices, end))
+  // Stocks only: USD/THB trades around the clock, so it's always newer.
+  const quoteTimes = [spy, ...results].map((p) => p?.latestAt ?? 0)
+  const pricesAsOf = Math.max(...quoteTimes) || null
+  return summarize(flows, computeTimeline(flows, spy, fx, prices, end), pricesAsOf)
 }

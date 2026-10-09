@@ -16,14 +16,23 @@ export class PriceSeries {
   readonly dates: string[]
   private readonly closes: number[]
   readonly latest: number
+  /** When `latest` was quoted, ms since epoch, if Yahoo said. */
+  readonly latestAt: number | null
   /** [ISO date, ratio], e.g. 10 for a 10:1 split. */
   private readonly splits: [string, number][]
 
-  constructor(symbol: string, closes: [string, number][], latest: number, splits: [string, number][] = []) {
+  constructor(
+    symbol: string,
+    closes: [string, number][],
+    latest: number,
+    splits: [string, number][] = [],
+    latestAt: number | null = null,
+  ) {
     this.symbol = symbol
     this.dates = closes.map(([date]) => date)
     this.closes = closes.map(([, close]) => close)
     this.latest = latest
+    this.latestAt = latestAt
     this.splits = splits
   }
 
@@ -59,7 +68,7 @@ type ChartResponse = {
   chart?: {
     error?: { description?: string } | null
     result?: {
-      meta: { gmtoffset?: number; regularMarketPrice?: number }
+      meta: { gmtoffset?: number; regularMarketPrice?: number; regularMarketTime?: number }
       timestamp?: number[]
       indicators: { quote: { close: (number | null)[] }[] }
       events?: { splits?: Record<string, { date: number; numerator: number; denominator: number }> }
@@ -92,7 +101,14 @@ export function parseChart(symbol: string, data: ChartResponse): PriceSeries {
   const splits = Object.values(result.events?.splits ?? {})
     .filter((s) => s.denominator)
     .map((s): [string, number] => [localDate(s.date, offset), s.numerator / s.denominator])
-  return new PriceSeries(symbol, closes, result.meta.regularMarketPrice ?? closes.at(-1)![1], splits)
+  const { regularMarketPrice, regularMarketTime } = result.meta
+  return new PriceSeries(
+    symbol,
+    closes,
+    regularMarketPrice ?? closes.at(-1)![1],
+    splits,
+    regularMarketTime ? regularMarketTime * 1000 : null,
+  )
 }
 
 // One download per symbol and date range per page load; the dashboard asks again whenever trades change.

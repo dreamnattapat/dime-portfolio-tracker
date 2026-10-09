@@ -9,12 +9,20 @@ import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/anal
 import { buildPortfolio, type PeriodChange, type Portfolio } from '@/lib/benchmark'
 import { computeAssetPnl, sumAssets } from '@/lib/assets'
 import type { Transaction } from '@/lib/db'
-import { formatDate, formatNumber, formatPercent, formatSignedThb, formatThb, localToday } from '@/lib/format'
+import {
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+  formatSignedThb,
+  formatThb,
+  localToday,
+} from '@/lib/format'
 
 /** The latest price lookup, and which trades it was for. */
 type Loaded = { flowsKey: string; portfolio: Portfolio | null; error: string | null }
 
-export function Dashboard({ transactions }: { transactions: Transaction[] }) {
+export function Dashboard({ transactions, lastSynced }: { transactions: Transaction[]; lastSynced: string | null }) {
   const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
@@ -52,6 +60,16 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
 
   return (
     <div className="space-y-6">
+      <p className="text-muted-foreground text-xs">
+        {lastSynced && <>Trades synced {formatDateTime(lastSynced)}</>}
+        {lastSynced && ' · '}
+        {loading
+          ? 'Fetching prices…'
+          : portfolio?.pricesAsOf
+            ? `Prices as of ${formatDateTime(portfolio.pricesAsOf)} (refreshes when you reload)`
+            : null}
+      </p>
+
       {error && (
         <p className="text-muted-foreground text-sm">
           Market prices are unavailable right now ({error}), so only realized figures are shown.

@@ -8,12 +8,13 @@ import {
   type ISeriesApi,
   type Time,
 } from 'lightweight-charts'
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { monthsBefore, type TimelinePoint } from '@/lib/benchmark'
-import { formatCompactThb, formatDate, formatThb } from '@/lib/format'
+import { changeBetween, monthsBefore, type TimelinePoint } from '@/lib/benchmark'
+import { formatCompactThb, formatDate, formatPercent, formatSignedThb, formatThb } from '@/lib/format'
 
 const LINES = {
   you: { color: '--series-you', dashed: false },
@@ -23,6 +24,14 @@ const LINES = {
 
 type LineKey = keyof typeof LINES
 type SeriesDef = { key: LineKey; label: string; of: (p: TimelinePoint) => number }
+
+// Each line's change over the selected range. Your portfolio and the mirror
+// count gain only, not money added (the same in both views); net invested
+// shows the money added or taken out.
+const VALUE_OF: Partial<Record<LineKey, (p: TimelinePoint) => number>> = {
+  you: (p) => p.value,
+  spy: (p) => p.spy,
+}
 
 // Value dips whenever holdings are sold to cash; gain (value minus net
 // invested) doesn't, so it shows the gap to the S&P 500 more clearly.
@@ -60,11 +69,11 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
-  const [hovered, setHovered] = useState<TimelinePoint | null>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
   const [range, setRange] = useState<string>('All')
   const [view, setView] = useState<keyof typeof VIEWS>('value')
   const { series } = VIEWS[view]
-  const byDate = useMemo(() => new Map(points.map((p) => [p.date, p])), [points])
+  const byDate = useMemo(() => new Map(points.map((p, i) => [p.date, i])), [points])
   // The crosshair handler is set up once, so it reads the latest points through a ref.
   const byDateRef = useRef(byDate)
   useEffect(() => {
@@ -129,7 +138,17 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
     else chart.timeScale().setVisibleRange({ from: monthsBefore(last.date, months) as Time, to: last.date as Time })
   }, [points, range, view])
 
-  const shown = hovered ?? points.at(-1)
+  // The readout covers the selected range, up to the hovered day or the latest.
+  const end = hovered ?? points.length - 1
+  const shown = points[end]
+  const months = RANGES.find((r) => r.label === range)?.months
+  const start =
+    months == null
+      ? 0
+      : Math.max(
+          0,
+          points.findLastIndex((p) => p.date <= monthsBefore(points.at(-1)!.date, months)),
+        )
   const monthEnds = points.filter(
     (p, i) => i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7),
   )
@@ -157,6 +176,9 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                 {s.label}
               </dt>
               <dd className="text-sm font-semibold tabular-nums">{shown ? formatThb(s.of(shown)) : '—'}</dd>
+              <dd className="text-xs">
+                <RangeChange points={points} start={start} end={end} line={s.key} />
+              </dd>
             </div>
           ))}
         </dl>
@@ -189,7 +211,11 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
           </div>
         </div>
       </div>
-      <p className="text-muted-foreground text-xs">{shown ? formatDate(shown.date) : ''}</p>
+      <p className="text-muted-foreground text-xs">
+        {shown && start < end
+          ? `${formatDate(points[start].date)} – ${formatDate(shown.date)}`
+          : formatDate(shown?.date)}
+      </p>
       <div ref={containerRef} className="h-72 w-full" />
       <details className="text-sm">
         <summary className="text-muted-foreground cursor-pointer text-xs">Show as table (month-end values)</summary>
@@ -221,5 +247,46 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
         </div>
       </details>
     </div>
+  )
+}
+
+/** How one line changed from points[start] to points[end]. */
+function RangeChange({
+  points,
+  start,
+  end,
+  line,
+}: {
+  points: TimelinePoint[]
+  start: number
+  end: number
+  line: LineKey
+}) {
+  const valueOf = VALUE_OF[line]
+  if (start >= end) return <span className="text-muted-foreground">—</span>
+  if (!valueOf) {
+    const added = points[end].invested - points[start].invested
+    return (
+      <span className="text-muted-foreground tabular-nums">
+        {Math.abs(added) < 1
+          ? 'No money added'
+          : added > 0
+            ? `${formatThb(added)} added`
+            : `${formatThb(-added)} taken out`}
+      </span>
+    )
+  }
+  const change = changeBetween(points, start, end, valueOf)
+  if (!change) return <span className="text-muted-foreground">—</span>
+  const up = change.returnPct >= 0
+  const Arrow = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
+        <Arrow className="size-3.5" aria-hidden />
+        {formatPercent(change.returnPct, { signed: true })}
+      </span>
+      <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gainThb)})</span>
+    </span>
   )
 }

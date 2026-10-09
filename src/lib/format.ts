@@ -48,6 +48,20 @@ export function formatPercent(value: number | null | undefined, { signed = false
   return `${signed && value > 0 ? '+' : ''}${formatNumber(value, decimals)}%`
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+/** ms since epoch or ISO timestamp -> "10 Oct 2026, 03:00", in the user's time zone. */
+export function formatDateTime(value: number | string | null | undefined): string {
+  if (value == null) return '—'
+  return dateTimeFormat.format(new Date(value))
+}
+
 /** Today's date where the user is, as YYYY-MM-DD. */
 export function localToday(): string {
   return new Date().toLocaleDateString('en-CA')

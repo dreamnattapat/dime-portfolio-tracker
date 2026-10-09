@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CashFlow } from './analytics'
-import { computeTimeline, dayChange, monthsBefore, periodChange, xirr, type TimelinePoint } from './benchmark'
+import {
+  changeBetween,
+  computeTimeline,
+  dayChange,
+  monthsBefore,
+  periodChange,
+  xirr,
+  type TimelinePoint,
+} from './benchmark'
 import { parseChart, PriceSeries } from './prices'
 
 const days = ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08']
@@ -108,6 +116,15 @@ describe('periodChange', () => {
   it('counts a sell-everything day by what the sale fetched', () => {
     const change = periodChange([point('2026-01-09', 1000), point('2026-02-09', 0, 0, 980)], 1)!
     expect(change.returnPct).toBeCloseTo(-2)
+  })
+
+  it('measures the S&P 500 mirror with the same cash flows', () => {
+    const points = [
+      { ...point('2026-01-09', 1000), spy: 1000 },
+      { ...point('2026-02-02', 2100, 1000), spy: 2200 },
+    ]
+    expect(changeBetween(points, 0, 1, (p) => p.spy)).toEqual({ gainThb: 200, returnPct: expect.closeTo(10) })
+    expect(changeBetween(points, 0, 1)).toEqual({ gainThb: 100, returnPct: expect.closeTo(5) })
   })
 
   it('returns null when the history is shorter than the period', () => {
