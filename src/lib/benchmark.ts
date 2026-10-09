@@ -1,0 +1,217 @@
+/**
+ * Values the portfolio day by day and compares it with the S&P 500 (SPY).
+ * Ported from dime-auto-log-transactions/src/benchmark.py.
+ *
+ * The S&P 500 side is a mirror portfolio: every Buy/Sell is mirrored by
+ * buying/selling the same USD amount of SPY on the same day. Both portfolios
+ * have identical cash in and out, so comparing their values answers "did my
+ * picks beat just holding the index?". Both are valued at each day's close and
+ * USD/THB rate; the mirror pays no fees, and dividends are left out on both
+ * sides.
+ *
+ * Unlike the Python version, units are converted to today's split-adjusted
+ * shares, so a holding that went through a split (which Dime! sends no email
+ * for) is still valued correctly after it.
+ */
+import { EPS, type CashFlow } from '@/lib/analytics'
+import { fetchPrices, PriceSeries, yahooSymbol } from '@/lib/prices'
+
+export const BENCHMARK_SYMBOL = 'SPY'
+const FX_SYMBOL = 'THB=X' // THB per 1 USD
+
+export type TimelinePoint = {
+  /** ISO YYYY-MM-DD */
+  date: string
+  /** Market value of the holdings, THB. */
+  value: number
+  /** Market value of the SPY mirror, THB. */
+  spy: number
+  /** Money put in minus money taken out so far, THB. */
+  invested: number
+  /** Cash spent on buys this day, THB. */
+  bought: number
+  /** Cash received from sells this day, THB. */
+  sold: number
+}
+
+export type Timeline = {
+  points: TimelinePoint[]
+  /** Securities with no market history (e.g. delisted), valued at their last trade price. */
+  approximated: string[]
+}
+
+export function xirr(flows: [string, number][]): number | null {
+  if (!flows.length) return null
+  const t0 = Math.min(...flows.map(([date]) => Date.parse(date)))
+  const years = flows.map(([date, amount]) => [(Date.parse(date) - t0) / (365 * 86_400_000), amount])
+  const npv = (rate: number) => years.reduce((sum, [t, amount]) => sum + amount / (1 + rate) ** t, 0)
+
+  // Bisection: robust where Newton's method can diverge.
+  let lo = -0.99
+  let hi = 10
+  let fLo = npv(lo)
+  if (fLo * npv(hi) > 0) return null // no sign change, no meaningful rate
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2
+    const fMid = npv(mid)
+    if (fLo * fMid <= 0) hi = mid
+    else [lo, fLo] = [mid, fMid]
+  }
+  return (lo + hi) / 2
+}
+
+/** Holdings, SPY mirror and net invested on every trading day from the first trade to today. */
+export function computeTimeline(
+  flows: CashFlow[],
+  spy: PriceSeries,
+  fx: PriceSeries,
+  prices: Map<string, PriceSeries | null>,
+  today: string,
+): Timeline {
+  if (!flows.length) return { points: [], approximated: [] }
+  const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
+
+  // Units in today's split-adjusted shares, so they pair with adjusted closes.
+  const units = new Map<string, number>()
+  const lastTradePrice = new Map<string, number>()
+  const approximated = new Set<string>()
+  let cashThb = 0
+  let spyShares = 0
+  let i = 0
+  const points: TimelinePoint[] = []
+
+  for (const day of days) {
+    let bought = 0
+    let sold = 0
+    for (; i < flows.length && flows[i].date <= day; i++) {
+      const f = flows[i]
+      const factor = prices.get(f.security)?.splitFactorAfter(f.date) ?? 1
+      units.set(f.security, (units.get(f.security) ?? 0) + f.units * factor)
+      if (f.unitPrice) lastTradePrice.set(f.security, f.unitPrice / factor)
+      cashThb += f.thb
+      if (f.thb < 0) bought -= f.thb
+      else sold += f.thb
+      spyShares += -f.usd / spy.on(f.date)
+    }
+
+    const isToday = day === today
+    let holdingsUsd = 0
+    for (const [security, held] of units) {
+      if (Math.abs(held) < EPS) continue
+      const series = prices.get(security)
+      let price: number
+      try {
+        if (!series) throw new RangeError(`no history for ${security}`)
+        price = isToday ? series.latest : series.on(day)
+      } catch {
+        price = lastTradePrice.get(security) ?? 0
+        approximated.add(security)
+      }
+      holdingsUsd += held * price
+    }
+
+    const usdThb = isToday ? fx.latest : fx.on(day)
+    points.push({
+      date: day,
+      value: holdingsUsd * usdThb,
+      spy: spyShares * (isToday ? spy.latest : spy.on(day)) * usdThb,
+      invested: -cashThb,
+      bought,
+      sold,
+    })
+  }
+  return { points, approximated: [...approximated].sort() }
+}
+
+/** ISO date `months` months before `iso`, clamped to the month's last day (31 Mar -> 28/29 Feb). */
+export function monthsBefore(iso: string, months: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const target = new Date(Date.UTC(y, m - 1 - months, 1))
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  target.setUTCDate(Math.min(d, lastDay))
+  return target.toISOString().slice(0, 10)
+}
+
+export type PeriodChange = {
+  /** Change in value not explained by money put in or taken out, THB. */
+  gainThb: number
+  /** Time-weighted return: ignores when and how much money was added. */
+  returnPct: number
+}
+
+/**
+ * How the portfolio did over the last `months` months, or null if the history
+ * is shorter than that. Uses the time-weighted return, as brokers do, so
+ * adding money doesn't count as growth: each day's return is end value plus
+ * sells over start value plus buys (buys at the open, sells at the close).
+ */
+export function periodChange(points: TimelinePoint[], months: number): PeriodChange | null {
+  if (!points.length) return null
+  const from = monthsBefore(points.at(-1)!.date, months)
+  let start = -1
+  for (let j = 0; j < points.length && points[j].date <= from; j++) start = j
+  if (start < 0) return null
+
+  let growth = 1
+  let gainThb = 0
+  for (let j = start + 1; j < points.length; j++) {
+    const prev = points[j - 1]
+    const p = points[j]
+    gainThb += p.value - prev.value - p.bought + p.sold
+    const base = prev.value + p.bought
+    if (base > 1) growth *= (p.value + p.sold) / base // skip days fully in cash
+  }
+  return { gainThb, returnPct: (growth - 1) * 100 }
+}
+
+export type Portfolio = {
+  timeline: Timeline
+  valueThb: number
+  /** Value plus everything taken out, minus everything put in: realized + unrealized. */
+  totalGainThb: number
+  spyValueThb: number
+  spyGainThb: number
+  /** Annualized money-weighted return, %. */
+  xirrPct: number | null
+  spyXirrPct: number | null
+  mom: PeriodChange | null
+  yoy: PeriodChange | null
+}
+
+export function summarize(flows: CashFlow[], timeline: Timeline): Portfolio {
+  const last = timeline.points.at(-1)
+  const value = last?.value ?? 0
+  const spyValue = last?.spy ?? 0
+  const invested = last?.invested ?? 0
+  const dated = flows.map((f): [string, number] => [f.date, f.thb])
+  const pct = (rate: number | null) => (rate == null ? null : rate * 100)
+  return {
+    timeline,
+    valueThb: value,
+    totalGainThb: value - invested,
+    spyValueThb: spyValue,
+    spyGainThb: spyValue - invested,
+    xirrPct: last ? pct(xirr([...dated, [last.date, value]])) : null,
+    spyXirrPct: last ? pct(xirr([...dated, [last.date, spyValue]])) : null,
+    mom: periodChange(timeline.points, 1),
+    yoy: periodChange(timeline.points, 12),
+  }
+}
+
+/** Fetches SPY, USD/THB and every traded ticker's prices, then values the portfolio. */
+export async function buildPortfolio(flows: CashFlow[], today: string): Promise<Portfolio> {
+  if (!flows.length) throw new Error('No transactions yet')
+  const start = flows[0].date
+  // A trade can carry tomorrow's date (Thai time is ahead of New York).
+  const end = flows.at(-1)!.date > today ? flows.at(-1)!.date : today
+  const securities = [...new Set(flows.map((f) => f.security))]
+
+  const [spy, fx, ...results] = await Promise.all([
+    fetchPrices(BENCHMARK_SYMBOL, start, end),
+    fetchPrices(FX_SYMBOL, start, end),
+    // A ticker without history (e.g. delisted) falls back to its last trade price.
+    ...securities.map((s) => fetchPrices(yahooSymbol(s), start, end).catch(() => null)),
+  ])
+  const prices = new Map(securities.map((s, i) => [s, results[i]]))
+  return summarize(flows, computeTimeline(flows, spy, fx, prices, end))
+}

@@ -2,8 +2,8 @@
 #
 # The Content-Security-Policy lets the page talk only to itself and to Google,
 # so the browser itself blocks any attempt to send emails, the birthdate or
-# trades anywhere else. Keep connect-src tight when adding the price proxy:
-# it should be served from this same origin ('self').
+# trades anywhere else. Market prices come through this site's own price proxy
+# (/api/chart, worker/index.ts), so 'self' covers them; keep it that way.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https://gmail.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
   Referrer-Policy: no-referrer

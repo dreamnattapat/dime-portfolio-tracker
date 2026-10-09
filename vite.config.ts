@@ -11,6 +11,17 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      // Same forwarding as the price proxy Worker (worker/index.ts) does in production.
+      '/api/chart/': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/chart\//, '/v8/finance/chart/'),
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      },
+    },
+  },
   build: {
     rolldownOptions: {
       // The app, plus the static privacy policy page (served at /privacy).

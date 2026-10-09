@@ -35,6 +35,11 @@
     --color-chart-3: var(--chart-3);
     --color-chart-4: var(--chart-4);
     --color-chart-5: var(--chart-5);
+    --color-series-you: var(--series-you);
+    --color-series-spy: var(--series-spy);
+    --color-series-invested: var(--series-invested);
+    --color-delta-up: var(--delta-up);
+    --color-delta-down: var(--delta-down);
     --color-sidebar: var(--sidebar);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar-primary: var(--sidebar-primary);
@@ -78,6 +83,15 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    /* Dashboard charts and deltas. Series colors are the first two slots of a
+       colorblind-validated palette; text never uses them. */
+    --series-you: #2a78d6;
+    --series-spy: #eb6834;
+    --series-invested: #898781;
+    --chart-grid: #e1e0d9;
+    --chart-axis-text: #898781;
+    --delta-up: #006300;
+    --delta-down: #d03b3b;
 }
 
 .dark {
@@ -112,6 +126,13 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --series-you: #3987e5;
+    --series-spy: #d95926;
+    --series-invested: #898781;
+    --chart-grid: #2c2c2a;
+    --chart-axis-text: #898781;
+    --delta-up: #0ca30c;
+    --delta-down: #e66767;
 }
 
 @layer base {

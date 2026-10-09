@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 
-import { PdfInspector } from '@/components/PdfInspector'
+import { Dashboard } from '@/components/Dashboard'
 import { TransactionsTable } from '@/components/TransactionsTable'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -179,6 +179,8 @@ export default function App() {
         </CardContent>
       </Card>
 
+      {transactions && transactions.length > unparsedCount && <Dashboard transactions={transactions} />}
+
       <Card>
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
@@ -200,19 +202,6 @@ export default function App() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Troubleshooting</CardTitle>
-          <CardDescription>See exactly what the newest PDF contains, or start over.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PdfInspector pdfPassword={pdfPassword} />
-          <Button variant="ghost" size="sm" className="text-destructive" onClick={handleClear}>
-            Delete local data
-          </Button>
-        </CardContent>
-      </Card>
-
       <footer className="text-muted-foreground space-y-1 text-xs">
         <p>
           <a className="underline underline-offset-2" href="/privacy">
@@ -227,6 +216,14 @@ export default function App() {
           >
             Source code
           </a>
+          {transactions?.length ? (
+            <>
+              {' · '}
+              <button className="underline underline-offset-2" onClick={handleClear}>
+                Delete local data
+              </button>
+            </>
+          ) : null}
         </p>
         <p>Not affiliated with Dime! or KKP Dime Securities Company Limited.</p>
       </footer>

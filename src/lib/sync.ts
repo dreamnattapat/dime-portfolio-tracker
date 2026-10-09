@@ -84,12 +84,3 @@ export async function syncFromGmail(
   if (wrongPassword) throw wrongPassword
   return progress
 }
-
-/** Debug helper (like scripts/dump_pdf_text.py): raw text of the newest Dime! PDF. */
-export async function extractLatestPdfText(accessToken: string, pdfPassword: string): Promise<string> {
-  const [latestId] = await findDimeMessageIds(accessToken, 1)
-  if (!latestId) return 'No Dime! emails found.'
-  const email = await fetchPdfAttachment(accessToken, latestId)
-  if (!email) return `Message ${latestId} has no PDF attachment.`
-  return extractText(email.pdfBytes, pdfPassword)
-}

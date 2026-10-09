@@ -41,6 +41,13 @@
           the app can open the PDFs. It is kept only in the page's memory, is never saved or sent anywhere, and is
           forgotten when you reload or close the page.
         </li>
+        <li>
+          <strong>Market prices.</strong> To value your holdings and compare them with the S&amp;P 500, the page looks
+          up daily prices for the ticker symbols you've traded (plus SPY and the USD/THB rate). These lookups go to
+          this site's own price service, which fetches them from Yahoo Finance. Only a ticker symbol and a date range
+          are sent: no amounts, units, account details or anything else about your trades. The price service doesn't
+          log or store the lookups.
+        </li>
       </ul>
 
       <h2>Where your data goes</h2>
@@ -65,7 +72,8 @@
 
       <h2>What the developer can see</h2>
       <p>
-        Nothing from your Gmail, your birthdate, or your trades. The site is static files hosted on Cloudflare.
+        Nothing from your Gmail, your birthdate, or your trades. The site is hosted on Cloudflare: static files, plus
+        the small price service described above, which only ever sees ticker symbols and dates.
         Like any website host, Cloudflare processes basic technical request information (such as IP address and
         browser type) to deliver the pages and protect against abuse, under
         <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noreferrer">Cloudflare's privacy policy</a>.
@@ -92,7 +100,7 @@
       <h2>Removing your data and access</h2>
       <ul>
         <li>
-          <strong>Stored transactions:</strong> click <em>Delete local data</em> on the app's page, or clear this
+          <strong>Stored transactions:</strong> click <em>Delete local data</em> at the bottom of the app's page, or clear this
           site's data in your browser settings.
         </li>
         <li>
