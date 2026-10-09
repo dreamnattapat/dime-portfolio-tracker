@@ -23,7 +23,8 @@ const LINES = {
 } as const
 
 type LineKey = keyof typeof LINES
-type SeriesDef = { key: LineKey; label: string; of: (p: TimelinePoint) => number }
+/** `of` gives a line's value on day `p`; `base` is the first day of the selected range. */
+type SeriesDef = { key: LineKey; label: string; of: (p: TimelinePoint, base: TimelinePoint) => number }
 
 // Each line's change over the selected range. Your portfolio and the mirror
 // count gain only, not money added (the same in both views); net invested
@@ -34,7 +35,12 @@ const VALUE_OF: Partial<Record<LineKey, (p: TimelinePoint) => number>> = {
 }
 
 // Value dips whenever holdings are sold to cash; gain (value minus net
-// invested) doesn't, so it shows the gap to the S&P 500 more clearly.
+// invested) doesn't, so it shows the gap to the S&P 500 more clearly. Gain
+// starts from 0 at the beginning of the selected range, so the lines show who
+// gained more in that range rather than everything since the first trade.
+const gainSince = (value: (p: TimelinePoint) => number) => (p: TimelinePoint, base: TimelinePoint) =>
+  value(p) - p.invested - (value(base) - base.invested)
+
 const VIEWS: Record<'value' | 'gain', { label: string; series: SeriesDef[] }> = {
   value: {
     label: 'Value',
@@ -47,8 +53,8 @@ const VIEWS: Record<'value' | 'gain', { label: string; series: SeriesDef[] }> = 
   gain: {
     label: 'Gain',
     series: [
-      { key: 'you', label: 'Your gain', of: (p) => p.value - p.invested },
-      { key: 'spy', label: 'Gain with the S&P 500', of: (p) => p.spy - p.invested },
+      { key: 'you', label: 'Your gain', of: gainSince((p) => p.value) },
+      { key: 'spy', label: 'Gain with the S&P 500', of: gainSince((p) => p.spy) },
     ],
   },
 }
@@ -121,26 +127,6 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
     }
   }, [])
 
-  useEffect(() => {
-    for (const [key, line] of seriesRef.current) {
-      const def = VIEWS[view].series.find((s) => s.key === key)
-      line.applyOptions({ visible: !!def })
-      line.setData(def ? points.map((p) => ({ time: p.date as Time, value: def.of(p) })) : [])
-    }
-  }, [points, view])
-
-  useEffect(() => {
-    const chart = chartRef.current
-    const last = points.at(-1)
-    if (!chart || !last) return
-    const months = RANGES.find((r) => r.label === range)?.months
-    if (months == null || points[0].date > monthsBefore(last.date, months)) chart.timeScale().fitContent()
-    else chart.timeScale().setVisibleRange({ from: monthsBefore(last.date, months) as Time, to: last.date as Time })
-  }, [points, range, view])
-
-  // The readout covers the selected range, up to the hovered day or the latest.
-  const end = hovered ?? points.length - 1
-  const shown = points[end]
   const months = RANGES.find((r) => r.label === range)?.months
   const start =
     months == null
@@ -149,9 +135,32 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
           0,
           points.findLastIndex((p) => p.date <= monthsBefore(points.at(-1)!.date, months)),
         )
+  const base = points[start]
+
+  useEffect(() => {
+    if (!base) return
+    for (const [key, line] of seriesRef.current) {
+      const def = VIEWS[view].series.find((s) => s.key === key)
+      line.applyOptions({ visible: !!def })
+      line.setData(def ? points.map((p) => ({ time: p.date as Time, value: def.of(p, base) })) : [])
+    }
+  }, [points, view, base])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    const last = points.at(-1)
+    if (!chart || !last) return
+    if (months == null || points[0].date > monthsBefore(last.date, months)) chart.timeScale().fitContent()
+    else chart.timeScale().setVisibleRange({ from: monthsBefore(last.date, months) as Time, to: last.date as Time })
+  }, [points, months, view])
+
+  // The readout covers the selected range, up to the hovered day or the latest.
+  const end = hovered ?? points.length - 1
+  const shown = points[end]
   const monthEnds = points.filter(
-    (p, i) => i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7),
+    (p, i) => i >= start && (i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7)),
   )
+  const money = view === 'gain' ? formatSignedMoney : formatMoney
 
   return (
     <div className="space-y-3">
@@ -175,9 +184,9 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                 </svg>
                 {s.label}
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">{shown ? formatMoney(s.of(shown), '$') : '—'}</dd>
+              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), '$') : '—'}</dd>
               <dd className="text-xs">
-                <RangeChange points={points} start={start} end={end} line={s.key} />
+                <RangeChange points={points} start={start} end={end} line={s.key} showAmount={view === 'value'} />
               </dd>
             </div>
           ))}
@@ -237,7 +246,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                   <TableCell>{formatDate(p.date)}</TableCell>
                   {series.map((s) => (
                     <TableCell key={s.key} className="text-right tabular-nums">
-                      {formatMoney(s.of(p), '$')}
+                      {money(s.of(p, base), '$')}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -256,11 +265,14 @@ function RangeChange({
   start,
   end,
   line,
+  showAmount,
 }: {
   points: TimelinePoint[]
   start: number
   end: number
   line: LineKey
+  /** Off in the gain view, where the amount is already the big number. */
+  showAmount: boolean
 }) {
   const valueOf = VALUE_OF[line]
   if (start >= end) return <span className="text-muted-foreground">—</span>
@@ -286,7 +298,9 @@ function RangeChange({
         <Arrow className="size-3.5" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
-      <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '$')})</span>
+      {showAmount && (
+        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '$')})</span>
+      )}
     </span>
   )
 }
