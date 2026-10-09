@@ -5,7 +5,7 @@
  * into lines by vertical position and joined left to right. That mimics what
  * pdfplumber gave the Python version, which the parser regexes expect.
  */
-import type { TextItem } from 'pdfjs-dist/types/src/display/api'
+import type { PDFPageProxy, TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
 // The legacy build bundles polyfills for the newest JS features pdf.js uses
 // (e.g. Map.getOrInsertComputed). Without them every PDF fails on browsers
 // that lack those features, such as iPhone Safari.
@@ -38,12 +38,25 @@ export async function extractText(pdfBytes: Uint8Array, password: string): Promi
     const pages: string[] = []
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n)
-      const content = await page.getTextContent()
-      pages.push(itemsToLines(content.items.filter((item): item is TextItem => 'str' in item)))
+      pages.push(itemsToLines(await readTextItems(page)))
     }
     return pages.join('\n')
   } finally {
     await loadingTask.destroy()
+  }
+}
+
+/**
+ * Same as page.getTextContent(), but that loops over a stream with `for await`,
+ * which older Safari can't do (and no polyfill covers), so read it chunk by chunk.
+ */
+async function readTextItems(page: PDFPageProxy): Promise<TextItem[]> {
+  const reader = (page.streamTextContent() as ReadableStream<TextContent>).getReader()
+  const items: TextItem[] = []
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return items
+    items.push(...value.items.filter((item): item is TextItem => 'str' in item))
   }
 }
 
