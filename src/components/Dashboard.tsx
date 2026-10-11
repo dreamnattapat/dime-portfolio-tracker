@@ -172,27 +172,28 @@ function SummarySlip({
                     : 'ไม่มีราคาตลาด'}
             </p>
           </div>
-          {/* Plays once when the day's change is known; click to replay. */}
-          {mood && <DayMood mood={mood} />}
         </header>
 
         <div className="perf -mx-6 my-6" aria-hidden />
 
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
-          <p className="text-4xl font-semibold tracking-tight tabular-nums">
-            {portfolio ? formatThb(portfolio.valueThb) : pending}
-          </p>
-          <div className="space-y-1 pt-1 text-sm">
-            <Delta
-              label="1D"
-              change={day}
-              pending={!portfolio}
-              title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
-            />
-            <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
-            <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
+            <p className="text-4xl font-semibold tracking-tight tabular-nums">
+              {portfolio ? formatThb(portfolio.valueThb) : pending}
+            </p>
+            <div className="space-y-1 pt-1 text-sm">
+              <Delta
+                label="1D"
+                change={day}
+                pending={!portfolio}
+                title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
+              />
+              <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
+              <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
+            </div>
           </div>
+          {mood && <DayMood mood={mood} />}
         </div>
 
         <div className="perf -mx-6 my-6" aria-hidden />
