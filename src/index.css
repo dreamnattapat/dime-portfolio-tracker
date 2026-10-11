@@ -168,8 +168,7 @@
     .data-flow { animation: none; }
 }
 
-/* ---- The summary slip -------------------------------------------------
-   The one sheet of torn paper on the page, with tear-off lines and a stamp. */
+/* Light surface tokens, for alerts and anything else that must read on white. */
 .paper {
     --foreground: oklch(0.145 0 0);
     --muted-foreground: oklch(0.5 0 0);
@@ -184,55 +183,6 @@
     background-color: #ffffff;
     color: var(--foreground);
 }
-
-/* A paper shadow. It lives on a wrapper because the torn-edge mask would
-   cut off a shadow on the sheet itself. */
-.slip-shadow {
-    filter: drop-shadow(0 1px 1px rgb(120 60 20 / 0.12)) drop-shadow(0 10px 20px rgb(120 60 20 / 0.12));
-}
-
-/* Torn zigzag edges: each tile is a wedge opening up (or down) from its
-   edge, so only the last --tooth pixels show teeth. */
-.torn-bottom,
-.torn-both {
-    --tooth: 7px;
-    --zz-bottom: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / calc(2 * var(--tooth)) 100%;
-    --zz-top: conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) 50% / calc(2 * var(--tooth)) 100%;
-}
-.torn-bottom {
-    -webkit-mask: var(--zz-bottom);
-    mask: var(--zz-bottom);
-}
-.torn-both {
-    -webkit-mask: var(--zz-bottom), var(--zz-top);
-    -webkit-mask-composite: source-in;
-    mask: var(--zz-bottom), var(--zz-top);
-    mask-composite: intersect;
-}
-
-/* The faint wavy security pattern printed on bank slips. */
-.guilloche {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='36' viewBox='0 0 120 36'%3E%3Cg fill='none' stroke='%23c4561a' stroke-opacity='.07'%3E%3Cpath d='M0 18C20 0 40 0 60 18S100 36 120 18'/%3E%3Cpath d='M0 18C20 36 40 36 60 18S100 0 120 18'/%3E%3Cpath d='M0 9C20-9 40-9 60 9S100 27 120 9'/%3E%3Cpath d='M0 27C20 45 40 45 60 27S100 9 120 27'/%3E%3C/g%3E%3C/svg%3E");
-    background-size: 120px 36px;
-}
-
-/* A tear-off line with a punched notch at each end. */
-.perf {
-    position: relative;
-    border-top: 2px dashed #d3d6db;
-}
-.perf::before,
-.perf::after {
-    content: "";
-    position: absolute;
-    top: -9px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--background);
-}
-.perf::before { left: -8px; }
-.perf::after { right: -8px; }
 
 /* The rubber stamp: double-ruled, tilted, inked onto the paper once. */
 .stamp {
