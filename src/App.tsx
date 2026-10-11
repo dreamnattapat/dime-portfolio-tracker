@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Dashboard } from '@/components/Dashboard'
@@ -8,7 +8,7 @@ import { Support } from '@/components/Support'
 import { TransactionsTable } from '@/components/TransactionsTable'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { parseBirthdate } from '@/lib/birthdate'
 import {
   clearLocalData,
@@ -20,7 +20,8 @@ import {
   saveHideAmounts,
   setLastSyncedAt,
 } from '@/lib/db'
-import { formatDateTime, setHideAmounts, type Currency } from '@/lib/format'
+import type { Timeline } from '@/lib/benchmark'
+import { formatDateTime, localToday, setHideAmounts, type Currency } from '@/lib/format'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
 import { WrongPasswordError } from '@/lib/pdf'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
@@ -48,6 +49,23 @@ export default function App() {
   function chooseCurrency(next: Currency) {
     saveCurrency(next)
     setCurrency(next)
+  }
+
+  // The latest prices, from the dashboard, so the Excel export includes today's values.
+  const [timeline, setTimeline] = useState<Timeline | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  async function exportExcel() {
+    if (!transactions) return
+    setExporting(true)
+    try {
+      const { exportToExcel } = await import('@/lib/exportExcel')
+      await exportToExcel(transactions, timeline, localToday())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setExporting(false)
+    }
   }
 
   function toggleHideAmounts() {
@@ -276,7 +294,12 @@ export default function App() {
           {syncing && progress && <SyncStatus progress={progress} />}
 
           {transactions.length > unparsedCount && (
-            <Dashboard transactions={transactions} hideAmounts={hideAmounts} currency={currency} />
+            <Dashboard
+              transactions={transactions}
+              hideAmounts={hideAmounts}
+              currency={currency}
+              onTimeline={setTimeline}
+            />
           )}
 
           <Card>
@@ -286,6 +309,18 @@ export default function App() {
                 {`${transactions.length - unparsedCount} รายการ` +
                   (unparsedCount ? ` · อ่าน PDF ไม่ได้ ${unparsedCount} ไฟล์` : '')}
               </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => void exportExcel()}
+                  disabled={exporting}
+                >
+                  <FileSpreadsheet aria-hidden />
+                  {exporting ? 'กำลังสร้างไฟล์…' : 'ส่งออก Excel'}
+                </Button>
+              </CardAction>
             </CardHeader>
             <CardContent>
               <TransactionsTable transactions={transactions} />

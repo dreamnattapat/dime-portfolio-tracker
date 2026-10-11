@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
-import { buildPortfolio, scorecard, type PeriodChange, type Portfolio } from '@/lib/benchmark'
+import { buildPortfolio, scorecard, type PeriodChange, type Portfolio, type Timeline } from '@/lib/benchmark'
 import { computeAssetPnl, sumAssets } from '@/lib/assets'
 import { getUsdThbOverride, setUsdThbOverride, type Transaction } from '@/lib/db'
 import {
@@ -28,9 +28,12 @@ export function Dashboard({
   transactions,
   hideAmounts,
   currency,
+  onTimeline,
 }: {
   transactions: Transaction[]
   hideAmounts: boolean
+  /** Shares the latest valuation (e.g. for the Excel export). */
+  onTimeline?: (timeline: Timeline | null) => void
   /** ฿: what it's worth in baht, exchange-rate moves included. $: exact, straight from the confirmations. */
   currency: Currency
 }) {
@@ -69,6 +72,10 @@ export function Dashboard({
   const portfolio = loaded?.portfolio ?? null
   const error = loading ? null : (loaded?.error ?? null)
   const pending = loading ? '…' : '—'
+  useEffect(() => {
+    onTimeline?.(portfolio?.timeline ?? null)
+  }, [portfolio, onTimeline])
+
   const usd = currency === '$'
   const assets = useMemo(
     () => computeAssetPnl(analytics, portfolio?.timeline ?? null, currency),
