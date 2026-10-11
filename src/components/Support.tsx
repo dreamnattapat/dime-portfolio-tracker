@@ -38,7 +38,7 @@ export function Support({ className = '' }: { className?: string }) {
             บันทึกรูป QR
           </a>
           <p className="text-muted-foreground max-w-xs text-xs leading-relaxed">
-            ใช้มือถือเครื่องนี้อยู่? บันทึกรูป QR แล้วเปิดแอปธนาคาร เลือกสแกนจากรูปภาพ ใส่จำนวนเท่าไรก็ได้ ขอบคุณมากครับ
+            ชอบส่องพอร์ต Dime ไหม? เลี้ยงกาแฟสักแก้วเป็นกำลังใจให้เว็บนี้ได้ไปต่อ ขอบคุณครับ
           </p>
         </div>
       </details>
