@@ -138,11 +138,8 @@ export default function App() {
             </Button>
           ) : (
             <header className="space-y-3">
-              <p className="text-sm">
-                <span className="text-brand font-semibold">ส่องพอร์ต</span>{' '}
-                <span className="text-muted-foreground">สำหรับคนลงทุนกับ Dime!</span>
-              </p>
-              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">ดูพอร์ต Dime! ของคุณแบบเข้าใจง่าย</h1>
+              <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
+              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">วิเคราะห์พอร์ตให้อัตโนมัติ</h1>
               <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
                 กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
                 ของคุณ ใช้ฟรี ไม่ต้องสมัครสมาชิก
@@ -204,10 +201,7 @@ export default function App() {
         <>
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-sm">
-                <span className="text-brand font-semibold">ส่องพอร์ต</span>{' '}
-                <span className="text-muted-foreground">สำหรับคนลงทุนกับ Dime!</span>
-              </p>
+              <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
               <h1 className="text-2xl font-semibold sm:text-3xl">พอร์ตของคุณ</h1>
               {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
             </div>

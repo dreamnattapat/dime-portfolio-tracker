@@ -1,4 +1,4 @@
-# ส่องพอร์ต (Dime! Portfolio Tracker)
+# ส่องพอร์ต Dime (Dime! Portfolio Tracker)
 
 A website that turns your Dime! trade confirmation emails into a transaction
 history and portfolio dashboard, without you having to set anything up.
