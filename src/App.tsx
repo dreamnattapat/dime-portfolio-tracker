@@ -139,7 +139,7 @@ export default function App() {
           ) : (
             <header className="space-y-3">
               <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
-              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">วิเคราะห์พอร์ตให้อัตโนมัติ</h1>
+              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">สรุปพอร์ตจากอีเมลของคุณ</h1>
               <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
                 กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
                 ของคุณ ใช้ฟรี ไม่ต้องสมัครสมาชิก
