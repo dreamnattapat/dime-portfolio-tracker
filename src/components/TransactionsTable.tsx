@@ -132,6 +132,10 @@ function TradeDetails({ tx }: { tx: ParsedTransaction & { gmailMessageId: string
         <Detail label="เรท THB/USD ในอีเมล" value={formatNumber(tx.fxRateThbUsd, 4)} />
         <Detail label="เรทจากยอดเงินบาท" value={formatNumber(impliedRate, 4)} />
       </dl>
+      <p className="text-muted-foreground">
+        เงินบาทในอีเมลคิดที่เรทอ้างอิง ไม่ใช่เรทที่แลกจริงใน Dime! Fast (ซึ่งมักสูงกว่าเล็กน้อย)
+        ยอดเงินบาทในเว็บนี้จึงอาจต่างจากในแอปเล็กน้อย ส่วนยอด USD ตรงกับแอป
+      </p>
       <EmailLink messageId={tx.gmailMessageId} />
     </div>
   )
