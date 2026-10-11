@@ -1,4 +1,4 @@
-import { Coffee, Download } from 'lucide-react'
+import { ChevronDown, Coffee, Download } from 'lucide-react'
 
 /**
  * A PromptPay QR for tips. Most visitors are on the same phone that shows the
@@ -9,15 +9,12 @@ export function Support({ className = '' }: { className?: string }) {
   return (
     <details className={`group bg-card rounded-2xl border px-5 py-4 ${className}`}>
       <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
-        <span className="bg-brand-soft text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+        {/* Coffee brown, set apart from the blue used for the app itself. */}
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#f3e6da] text-[#7a4527]">
           <Coffee className="size-5" aria-hidden />
         </span>
-        <span className="flex-1">
-          <span className="block font-semibold">ชอบส่องพอร์ต Dime ไหม?</span>
-          <span className="text-muted-foreground block text-sm">เลี้ยงกาแฟคนทำได้ผ่านพร้อมเพย์</span>
-        </span>
-        <span className="text-brand text-sm font-medium group-open:hidden">เลี้ยงกาแฟ</span>
-        <span className="text-muted-foreground hidden text-sm group-open:inline">ปิด</span>
+        <span className="flex-1 font-semibold">BUY ME A COFFEE</span>
+        <ChevronDown className="text-muted-foreground size-5 transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="mt-4 flex flex-col items-center gap-3 border-t pt-4 text-center">
         <img
