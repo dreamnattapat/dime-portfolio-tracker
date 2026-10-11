@@ -161,7 +161,7 @@ function SummarySlip({
             <Check className="size-5" strokeWidth={3} aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-lg leading-tight font-semibold">สรุปพอร์ตสำเร็จ</p>
+            <p className="font-display text-lg leading-tight font-medium">สรุปพอร์ตสำเร็จ</p>
             <p className="text-muted-foreground text-xs">
               {loading
                 ? 'กำลังดึงราคา…'
@@ -179,7 +179,7 @@ function SummarySlip({
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
-            <p className="text-4xl font-semibold tracking-tight tabular-nums">
+            <p className="font-display text-4xl font-medium tabular-nums">
               {portfolio ? formatThb(portfolio.valueThb) : pending}
             </p>
             <div className="space-y-1 pt-1 text-sm">

@@ -6,7 +6,7 @@
 
 @theme inline {
     --font-sans: "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
-    --color-desk: var(--desk);
+    --font-display: "Mitr", "IBM Plex Sans Thai", ui-sans-serif, sans-serif;
     --color-brand: var(--brand);
     --color-brand-soft: var(--brand-soft);
     --radius-sm: calc(var(--radius) * 0.6);
@@ -56,13 +56,11 @@
 
 :root {
     --radius: 0.625rem;
-    /* A cool mist page behind white cards; the brand blue is the "you" line's
-       hue, darkened to meet text contrast on white. */
-    --background: #f4f6f9;
-    --brand: #1d5fb8;
-    --brand-soft: #e7eef9;
-    /* The "desk" every paper slip sits on. */
-    --desk: #1f2d44;
+    /* A warm peach page behind white cards. The orange comes from the happy
+       bunny, deepened so white text on it stays readable. */
+    --background: #fff5ec;
+    --brand: #c4561a;
+    --brand-soft: #fde6d4;
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
@@ -152,8 +150,7 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply text-foreground;
-    background-color: var(--desk);
+    @apply bg-background text-foreground;
     }
 }
 /* DayMood: the bunny picture pops in once when the day's change is known. */
@@ -182,27 +179,9 @@
     .data-flow { animation: none; }
 }
 
-/* ---- Slip look -------------------------------------------------------
-   The page is a dark desk; each section is a sheet of paper on it. Tokens
-   are rescoped so components read correctly on either surface. */
-.desk {
-    --background: var(--desk);
-    --foreground: #eef2f8;
-    --muted-foreground: #a6b4c8;
-    --border: rgb(255 255 255 / 0.16);
-    --input: rgb(255 255 255 / 0.22);
-    --muted: rgb(255 255 255 / 0.08);
-    --accent: rgb(255 255 255 / 0.1);
-    --accent-foreground: #ffffff;
-    --primary: #eef2f8;
-    --primary-foreground: var(--desk);
-    --brand: #8db8f2;
-    --brand-soft: rgb(141 184 242 / 0.16);
-    --ring: #8db8f2;
-    color: var(--foreground);
-}
+/* ---- The summary slip -------------------------------------------------
+   The one sheet of torn paper on the page, with tear-off lines and a stamp. */
 .paper {
-    --background: #ffffff;
     --foreground: oklch(0.145 0 0);
     --muted-foreground: oklch(0.5 0 0);
     --border: #e4e4e0;
@@ -212,8 +191,6 @@
     --accent-foreground: oklch(0.205 0 0);
     --primary: oklch(0.205 0 0);
     --primary-foreground: oklch(0.985 0 0);
-    --brand: #1d5fb8;
-    --brand-soft: #e7eef9;
     --ring: oklch(0.708 0 0);
     background-color: #ffffff;
     color: var(--foreground);
@@ -222,7 +199,7 @@
 /* A paper shadow. It lives on a wrapper because the torn-edge mask would
    cut off a shadow on the sheet itself. */
 .slip-shadow {
-    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.2)) drop-shadow(0 14px 22px rgb(5 10 22 / 0.4));
+    filter: drop-shadow(0 1px 1px rgb(120 60 20 / 0.12)) drop-shadow(0 10px 20px rgb(120 60 20 / 0.12));
 }
 
 /* Torn zigzag edges: each tile is a wedge opening up (or down) from its
@@ -246,7 +223,7 @@
 
 /* The faint wavy security pattern printed on bank slips. */
 .guilloche {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='36' viewBox='0 0 120 36'%3E%3Cg fill='none' stroke='%231d5fb8' stroke-opacity='.07'%3E%3Cpath d='M0 18C20 0 40 0 60 18S100 36 120 18'/%3E%3Cpath d='M0 18C20 36 40 36 60 18S100 0 120 18'/%3E%3Cpath d='M0 9C20-9 40-9 60 9S100 27 120 9'/%3E%3Cpath d='M0 27C20 45 40 45 60 27S100 9 120 27'/%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='36' viewBox='0 0 120 36'%3E%3Cg fill='none' stroke='%23c4561a' stroke-opacity='.07'%3E%3Cpath d='M0 18C20 0 40 0 60 18S100 36 120 18'/%3E%3Cpath d='M0 18C20 36 40 36 60 18S100 0 120 18'/%3E%3Cpath d='M0 9C20-9 40-9 60 9S100 27 120 9'/%3E%3Cpath d='M0 27C20 45 40 45 60 27S100 9 120 27'/%3E%3C/g%3E%3C/svg%3E");
     background-size: 120px 36px;
 }
 
@@ -263,7 +240,7 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: var(--desk);
+    background: var(--background);
 }
 .perf::before { left: -8px; }
 .perf::after { right: -8px; }

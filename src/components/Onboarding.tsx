@@ -26,7 +26,7 @@ export function Stepper({ current }: { current: Step }) {
             <div className="flex items-center gap-2">
               <span
                 className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  done ? 'bg-brand text-desk' : active ? 'border-brand text-brand border-2' : 'bg-muted text-muted-foreground'
+                  done ? 'bg-brand text-white' : active ? 'border-brand text-brand border-2' : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {done ? <Check className="size-3.5" aria-label="เสร็จแล้ว" /> : step}
@@ -42,12 +42,10 @@ export function Stepper({ current }: { current: Step }) {
 
 function StepPanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="slip-shadow">
-      <section className="paper torn-bottom space-y-5 rounded-t-sm p-5 pb-[calc(1.25rem+7px)] sm:p-7 sm:pb-[calc(1.75rem+7px)]">
-        <h2 className="text-xl font-semibold">{title}</h2>
-        {children}
-      </section>
-    </div>
+    <section className="bg-card space-y-5 rounded-3xl p-6 shadow-[0_1px_2px_rgb(120_60_20/0.06),0_8px_24px_rgb(120_60_20/0.07)] sm:p-8">
+      <h2 className="font-display text-xl font-medium">{title}</h2>
+      {children}
+    </section>
   )
 }
 
@@ -66,7 +64,7 @@ export function ConnectStep({
         เว็บนี้ค้นหาเฉพาะอีเมลหัวข้อ “{EMAIL_SUBJECT}” เพื่อดึงไฟล์ใบยืนยันการซื้อขาย สิทธิ์เป็นแบบอ่านอย่างเดียว
         จึงส่ง ลบ หรือแก้ไขอีเมลของคุณไม่ได้
       </p>
-      <Button size="lg" className="bg-brand hover:bg-brand/90 h-12 w-full text-base text-white" onClick={onConnect} disabled={disabled || connecting}>
+      <Button size="lg" className="bg-brand hover:bg-brand/90 h-12 w-full rounded-full text-base text-white" onClick={onConnect} disabled={disabled || connecting}>
         <Mail className="size-5" aria-hidden />
         {connecting ? 'กำลังรอ Google…' : 'เชื่อมต่อ Gmail'}
       </Button>
@@ -151,7 +149,7 @@ export function BirthdateStep({
         <Button
           type="submit"
           size="lg"
-          className="bg-brand hover:bg-brand/90 h-12 w-full text-base text-white"
+          className="bg-brand hover:bg-brand/90 h-12 w-full rounded-full text-base text-white"
           disabled={!parsed || syncing}
         >
           <FileLock2 className="size-5" aria-hidden />
@@ -182,7 +180,7 @@ export function SyncStatus({ progress }: { progress: SyncProgress }) {
 export function DataPath() {
   return (
     <section className="space-y-5" aria-labelledby="data-path-title">
-      <h2 id="data-path-title" className="text-lg font-semibold">
+      <h2 id="data-path-title" className="font-display text-lg font-medium">
         ข้อมูลของคุณอยู่ในเครื่องคุณเท่านั้น
       </h2>
       <figure className="space-y-3">
@@ -226,7 +224,7 @@ function Node({ icon, label, highlight, muted }: { icon: ReactNode; label: strin
     <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
       <span
         className={`flex size-12 items-center justify-center rounded-2xl [&_svg]:size-6 ${
-          highlight ? 'bg-brand text-desk' : muted ? 'bg-muted text-muted-foreground/60' : 'bg-brand-soft text-brand'
+          highlight ? 'bg-brand text-white' : muted ? 'bg-muted text-muted-foreground/60' : 'bg-brand-soft text-brand'
         }`}
       >
         {icon}

@@ -117,7 +117,7 @@ export default function App() {
   const step = connected ? 2 : 1
 
   return (
-    <main className="desk mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-12 sm:pt-12">
+    <main className="mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-12 sm:pt-12">
       {!clientId && (
         <Alert variant="destructive" className="paper">
           <AlertTitle>ยังไม่ได้ตั้งค่าการเข้าสู่ระบบด้วย Google</AlertTitle>
@@ -138,9 +138,22 @@ export default function App() {
               กลับไปดูพอร์ต
             </Button>
           ) : (
-            <header className="space-y-3">
-              <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
-              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">สรุปพอร์ตจากอีเมลของคุณ</h1>
+            <header className="space-y-4">
+              <div className="flex items-end gap-4">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
+                  <h1 className="font-display text-[1.75rem] leading-tight font-medium sm:text-4xl">
+                    สรุปพอร์ตจากอีเมลของคุณ
+                  </h1>
+                </div>
+                <img
+                  src="/mood-up.jpg"
+                  alt=""
+                  width={344}
+                  height={360}
+                  className="h-28 w-[104px] shrink-0 rounded-3xl object-cover sm:h-36 sm:w-[136px]"
+                />
+              </div>
               <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
                 กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
                 ของคุณ ใช้ฟรี ไม่ต้องสมัครสมาชิก
@@ -203,10 +216,10 @@ export default function App() {
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
               <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
-              <h1 className="text-2xl font-semibold sm:text-3xl">พอร์ตของคุณ</h1>
+              <h1 className="font-display text-2xl font-medium sm:text-3xl">พอร์ตของคุณ</h1>
               {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
             </div>
-            <Button variant="outline" onClick={syncFromDashboard} disabled={syncing}>
+            <Button variant="outline" className="bg-card rounded-full" onClick={syncFromDashboard} disabled={syncing}>
               <RefreshCw className={syncing ? 'animate-spin' : undefined} aria-hidden />
               {syncing ? 'กำลังดึงอีเมลใหม่…' : 'ดึงอีเมลใหม่'}
             </Button>

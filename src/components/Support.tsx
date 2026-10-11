@@ -7,8 +7,8 @@ import { ChevronDown, Coffee, Download } from 'lucide-react'
  */
 export function Support({ className = '' }: { className?: string }) {
   return (
-    <div className={`slip-shadow ${className}`}>
-      <details className="group paper torn-bottom rounded-t-sm px-5 pt-4 pb-[calc(1rem+7px)]">
+    <div className={className}>
+      <details className="group bg-card rounded-3xl px-5 py-4 shadow-[0_1px_2px_rgb(120_60_20/0.06),0_8px_24px_rgb(120_60_20/0.07)]">
         <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
           {/* Coffee brown, set apart from the blue used for the app itself. */}
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#f3e6da] text-[#7a4527]">

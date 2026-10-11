@@ -1,19 +1,17 @@
 import * as React from "react"
 import { cn } from "cn"
 
-/** A sheet of paper on the desk: torn bottom edge, paper shadow. */
+/** A soft, very rounded white card with a warm shadow. */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div className="slip-shadow">
-      <div
-        data-slot="card"
-        className={cn(
-          "paper torn-bottom flex flex-col gap-6 rounded-t-sm pt-6 pb-[calc(1.5rem+7px)] text-card-foreground",
-          className
-        )}
-        {...props}
-      />
-    </div>
+    <div
+      data-slot="card"
+      className={cn(
+        "flex flex-col gap-6 rounded-3xl bg-card py-6 text-card-foreground shadow-[0_1px_2px_rgb(120_60_20/0.06),0_8px_24px_rgb(120_60_20/0.07)]",
+        className
+      )}
+      {...props}
+    />
   )
 }
 
@@ -34,7 +32,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn("leading-none font-semibold", className)}
+      className={cn("font-display text-lg leading-snug font-medium", className)}
       {...props}
     />
   )
