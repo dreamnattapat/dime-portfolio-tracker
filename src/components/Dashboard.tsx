@@ -2,7 +2,6 @@ import { ArrowDownRight, ArrowUpRight, Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AssetsTable } from '@/components/AssetsTable'
-import { DayMood } from '@/components/DayMood'
 import { PortfolioChart } from '@/components/PortfolioChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
@@ -150,7 +149,6 @@ function SummarySlip({
   tradeCount: number
 }) {
   const day = portfolio?.day
-  const mood = !day || day.returnPct === 0 ? null : day.returnPct > 0 ? 'up' : 'down'
   const score = portfolio ? scorecard(portfolio.timeline.pointsUsd, null) : null
 
   return (
@@ -176,24 +174,21 @@ function SummarySlip({
 
         <div className="perf -mx-6 my-6" aria-hidden />
 
-        <div className="flex items-start gap-4">
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
-            <p className="font-display text-4xl font-medium tabular-nums">
-              {portfolio ? formatThb(portfolio.valueThb) : pending}
-            </p>
-            <div className="space-y-1 pt-1 text-sm">
-              <Delta
-                label="1D"
-                change={day}
-                pending={!portfolio}
-                title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
-              />
-              <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
-              <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
-            </div>
+        <div className="space-y-2">
+          <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
+          <p className="font-display text-4xl font-medium tabular-nums">
+            {portfolio ? formatThb(portfolio.valueThb) : pending}
+          </p>
+          <div className="space-y-1 pt-1 text-sm">
+            <Delta
+              label="1D"
+              change={day}
+              pending={!portfolio}
+              title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
+            />
+            <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
+            <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
           </div>
-          {mood && <DayMood mood={mood} />}
         </div>
 
         <div className="perf -mx-6 my-6" aria-hidden />
