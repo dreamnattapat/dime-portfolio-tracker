@@ -1,11 +1,11 @@
-import { ChevronDown, Coffee, Download } from "lucide-react";
+import { ChevronDown, Coffee, Download } from 'lucide-react'
 
 /**
  * A PromptPay QR for tips. Most visitors are on the same phone that shows the
  * QR, so they can't scan it: they save the image and open it in their bank
  * app's "scan from photo" instead.
  */
-export function Support({ className = "" }: { className?: string }) {
+export function Support({ className = '' }: { className?: string }) {
   return (
     <div className={`slip-shadow ${className}`}>
       <details className="group paper torn-bottom rounded-t-sm px-5 pt-4 pb-[calc(1rem+7px)]">
@@ -38,11 +38,10 @@ export function Support({ className = "" }: { className?: string }) {
             บันทึกรูป QR
           </a>
           <p className="text-muted-foreground max-w-xs text-xs leading-relaxed">
-            ใช้มือถือเครื่องนี้อยู่? บันทึกรูป QR แล้วเปิดแอปธนาคาร
-            เลือกสแกนจากรูปภาพ ใส่จำนวนเท่าไรก็ได้ ขอบคุณมากครับ
+            ใช้มือถือเครื่องนี้อยู่? บันทึกรูป QR แล้วเปิดแอปธนาคาร เลือกสแกนจากรูปภาพ ใส่จำนวนเท่าไรก็ได้ ขอบคุณมากครับ
           </p>
         </div>
       </details>
     </div>
-  );
+  )
 }
