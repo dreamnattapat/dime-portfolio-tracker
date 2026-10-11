@@ -7,10 +7,12 @@
  * each Sell consumes lots oldest-first, and net proceeds minus matched cost is
  * that trade's realized P&L. Everything is in THB, using each row's
  * `totalAmountThb` (already net of VAT/withholding): the account's actual cash.
+ * Sells also lose the SEC and TAF fees Dime! deducts later (fees.ts).
  *
  * Realized only. Valuing open positions needs market prices; see benchmark.ts.
  */
 import type { Transaction } from '@/lib/db'
+import { netAmounts } from '@/lib/dime/fees'
 import type { ParsedTransaction } from '@/lib/dime/parser'
 
 // Smallest fraction of a unit treated as real rather than float residue. Units
@@ -124,13 +126,16 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
   for (const row of rows) {
     if (row.totalAmountThb == null) continue
     const isSell = row.transactionType === 'Sell'
+    // What actually reached the account: sells less the fees deducted after the confirmation.
+    const net = netAmounts(row)
+    const proceedsThb = net.thb ?? row.totalAmountThb
     cashFlows.push({
       security: row.security,
       date: tradeDate(row),
       units: isSell ? -row.units : row.units,
       unitPrice: row.unitPrice,
-      thb: isSell ? row.totalAmountThb : -row.totalAmountThb,
-      usd: isSell ? row.totalAmount : -row.totalAmount,
+      thb: isSell ? proceedsThb : -row.totalAmountThb,
+      usd: isSell ? net.usd : -row.totalAmount,
     })
 
     let queue = lots.get(row.security)
@@ -159,7 +164,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
       if (take >= lot.units - EPS) queue.shift()
       else lot.units -= take
     }
-    const pnl = row.totalAmountThb - matchedCost
+    const pnl = proceedsThb - matchedCost
     asset.realizedPnlThb += pnl
     if (average.units - row.units > EPS) {
       average.costUsd -= (average.costUsd / average.units) * row.units
@@ -171,7 +176,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
       date: tradeDate(row),
       security: row.security,
       units: row.units,
-      proceedsThb: row.totalAmountThb,
+      proceedsThb,
       costThb: matchedCost,
       pnlThb: pnl,
       pnlPct: matchedCost ? (pnl / matchedCost) * 100 : null,

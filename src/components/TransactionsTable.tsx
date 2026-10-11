@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePagination } from '@/hooks/usePagination'
 import type { Transaction } from '@/lib/db'
+import { netAmounts, otherSellFees } from '@/lib/dime/fees'
 import type { ParsedTransaction, TransactionType } from '@/lib/dime/parser'
 import { formatAmount, formatDate, formatNumber, formatUnits } from '@/lib/format'
 
@@ -76,8 +77,8 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
                   <TableCell className="font-medium">{tx.security}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatUnits(tx.units)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatNumber(tx.unitPrice)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatAmount(tx.totalAmount)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatAmount(tx.totalAmountThb)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatAmount(netAmounts(tx).usd)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatAmount(netAmounts(tx).thb)}</TableCell>
                   <TableCell className="w-8">
                     <ChevronDown
                       className={`text-muted-foreground size-4 transition-transform ${open === tx.id ? 'rotate-180' : ''}`}
@@ -118,8 +119,11 @@ function TradeDetails({ tx }: { tx: ParsedTransaction & { gmailMessageId: string
     tx.totalAmountThb != null && tx.grossAmountThb != null ? Math.abs(tx.totalAmountThb - tx.grossAmountThb) : null
   // The rate the email's baht figures work out to; can differ from the rate printed on it.
   const impliedRate = tx.totalAmountThb != null && tx.totalAmount ? tx.totalAmountThb / tx.totalAmount : null
+  // Sells: the SEC and TAF fees Dime! deducts after the confirmation ("ค่าธรรมเนียมรอจ่าย").
+  const other = otherSellFees(tx)
+  const net = netAmounts(tx)
   return (
-    <div className="space-y-3 py-1 text-xs">
+    <div className="sticky left-0 max-w-[calc(100vw-6rem)] space-y-3 py-1 text-xs sm:max-w-xl">
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 sm:grid-cols-[auto_auto_auto_1fr]">
         <Detail label="เลขที่คำสั่ง" value={tx.orderId} />
         <Detail label="วันชำระราคา" value={formatDate(tx.settlementDate)} />
@@ -127,11 +131,24 @@ function TradeDetails({ tx }: { tx: ParsedTransaction & { gmailMessageId: string
         <Detail label="มูลค่าหุ้น (THB)" value={formatAmount(tx.grossAmountThb)} />
         <Detail label="ค่าคอม + VAT (USD)" value={formatAmount(fees)} />
         <Detail label="ค่าคอม + VAT (THB)" value={formatAmount(feesThb)} />
-        <Detail label="รวม (USD)" value={formatAmount(tx.totalAmount)} />
-        <Detail label="รวม (THB)" value={formatAmount(tx.totalAmountThb)} />
+        <Detail label="รวมตามอีเมล (USD)" value={formatAmount(tx.totalAmount)} />
+        <Detail label="รวมตามอีเมล (THB)" value={formatAmount(tx.totalAmountThb)} />
+        {other.totalUsd > 0 && (
+          <>
+            <Detail label="ค่าธรรมเนียม SEC (USD)" value={formatAmount(other.secUsd)} />
+            <Detail label="ค่าธรรมเนียม TAF (USD)" value={formatAmount(other.tafUsd)} />
+            <Detail label="ยอดรับคืนสุทธิ (USD)" value={formatAmount(net.usd)} />
+            <Detail label="ยอดรับคืนสุทธิ (THB)" value={formatAmount(net.thb)} />
+          </>
+        )}
         <Detail label="เรท THB/USD ในอีเมล" value={formatNumber(tx.fxRateThbUsd, 4)} />
         <Detail label="เรทจากยอดเงินบาท" value={formatNumber(impliedRate, 4)} />
       </dl>
+      {other.totalUsd > 0 && (
+        <p className="text-muted-foreground">
+          ค่าธรรมเนียม SEC และ TAF ไม่อยู่ในอีเมล เว็บนี้คำนวณจากอัตราในท้ายอีเมล ให้ตรงกับ "ยอดที่จะได้รับคืน" ในแอป
+        </p>
+      )}
       <p className="text-muted-foreground">
         เงินบาทในอีเมลคิดที่เรทอ้างอิง ไม่ใช่เรทที่แลกจริงใน Dime! Fast (ซึ่งมักสูงกว่าเล็กน้อย)
         ยอดเงินบาทในเว็บนี้จึงอาจต่างจากในแอปเล็กน้อย ส่วนยอด USD ตรงกับแอป

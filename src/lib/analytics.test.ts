@@ -5,7 +5,15 @@ import type { Transaction } from './db'
 
 let nextOrderId = 1
 
-function tx(date: string, type: 'Buy' | 'Sell', security: string, units: number, totalAmountThb: number): Transaction {
+/** A trade with no SEC/TAF fees unless `fees` is set, so most tests check the FIFO maths alone. */
+function tx(
+  date: string,
+  type: 'Buy' | 'Sell',
+  security: string,
+  units: number,
+  totalAmountThb: number,
+  fees = false,
+): Transaction {
   const orderId = String(nextOrderId++)
   return {
     id: `msg${orderId}:0`,
@@ -38,6 +46,8 @@ function tx(date: string, type: 'Buy' | 'Sell', security: string, units: number,
     totalVatThb: null,
     totalWithholdingTaxThb: null,
     fxRateThbUsd: 33,
+    secFeePct: fees ? 0.00206 : 0,
+    tafPerShareUsd: fees ? 0.000195 : 0,
   }
 }
 
@@ -65,6 +75,16 @@ describe('computeAnalytics', () => {
     const result = computeAnalytics([sell, buy])
     expect(result.trades[0].pnlThb).toBeCloseTo(500)
     expect(result.cashFlows.map((f) => f.thb)).toEqual([-1000, 1500])
+  })
+
+  it("deducts the SEC and TAF fees from a sell's proceeds", () => {
+    const result = computeAnalytics([
+      tx('2026-01-02', 'Buy', 'AAPL', 10, 1000, true),
+      tx('2026-03-02', 'Sell', 'AAPL', 10, 1500, true), // 45.45 USD: SEC 0.01 + TAF 0.01 = 0.02 USD = 0.66 THB
+    ])
+    expect(result.trades[0].proceedsThb).toBeCloseTo(1500 - 0.66)
+    expect(result.trades[0].pnlThb).toBeCloseTo(500 - 0.66)
+    expect(result.cashFlows[1].usd).toBeCloseTo(1500 / 33 - 0.02, 2)
   })
 
   it('flags a sell with no matching buy on record', () => {

@@ -56,6 +56,7 @@ Discount
 ไม่รวมภาษีมูลค่าเพิ่ม (THB)
 ลูกค้าสามารถตรวจสอบค่าธรรมเนียมได้ที่ www.dime.co.th 88.62
 Total Fee After Discount
+1. Securities and Exchange Commission (SEC) at a rate of 0.00206% of the value of sell orders.
 2. Trading Activity Fee (TAF) at a rate of 0.000195 USD per share sold, with a minimum of 0.01 USD and a maximum of ภาษีมูลค่าเพิ่ม (THB)
 6.20
 9.79 USD per trade, and at a rate of 0.00329 USD for option contract sold. Total Vat
@@ -110,6 +111,8 @@ describe('parseFields, pdf.js layout (order split over three lines)', () => {
       totalVatThb: 6.2,
       totalWithholdingTaxThb: 0,
       fxRateThbUsd: 33.4664,
+      secFeePct: 0.00206,
+      tafPerShareUsd: 0.000195,
       effectiveDate: '2026-10-07',
       issueDate: '2026-10-08',
     })

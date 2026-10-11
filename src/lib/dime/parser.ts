@@ -67,6 +67,13 @@ export type DocumentHeaders = {
   totalVatThb: number | null
   totalWithholdingTaxThb: number | null
   fxRateThbUsd: number | null
+  /**
+   * US regulatory fees on sells, as rates from the "Other fees include"
+   * footnote. Dime! deducts these later, so they aren't in the totals; see fees.ts.
+   * Missing on rows saved before these were read.
+   */
+  secFeePct?: number | null
+  tafPerShareUsd?: number | null
   effectiveDate: string | null
   issueDate: string | null
 }
@@ -137,6 +144,16 @@ const HEADER_PATTERNS: Record<string, RegExp[]> = {
   totalVatThb: [/ภาษีมูลค่าเพิ่ม\s*\(THB\)\s*([\d,]+\.\d+)/u],
   totalWithholdingTaxThb: [/ภาษีหัก\s*ณ\s*ที่จ่าย\s*\(THB\)\s*([\d,]+\.\d+)/u],
   fxRateThbUsd: [/THB\/USD\s*=\s*([\d.]+)/u],
+  // "Securities and Exchange Commission (SEC) at a rate of 0.00206% of the value of sell orders."
+  secFeePct: [
+    /\(SEC\)\s*at a rate of\s*([\d.]+)\s*%/u,
+    /Commission,\s*SEC\)\s*เรียกเก็บที่อัตรา\s*([\d.]+)\s*%/u,
+  ],
+  // "Trading Activity Fee (TAF) at a rate of 0.000195 USD per share sold, ..."
+  tafPerShareUsd: [
+    /\(TAF\)\s*at a rate of\s*([\d.]+)\s*USD per share/u,
+    /Fee,\s*TAF\)\s*เรียกเก็บที่\s*([\d.]+)\s*USD/u,
+  ],
 }
 
 const EFFECTIVE_ISSUE_DATE_RE =
@@ -178,6 +195,8 @@ function parseHeaders(text: string): DocumentHeaders {
     totalVatThb: number('totalVatThb'),
     totalWithholdingTaxThb: number('totalWithholdingTaxThb'),
     fxRateThbUsd: number('fxRateThbUsd'),
+    secFeePct: number('secFeePct'),
+    tafPerShareUsd: number('tafPerShareUsd'),
     effectiveDate: dates ? toIsoDate(dates.effectiveDate) : null,
     issueDate: dates ? toIsoDate(dates.issueDate) : null,
   }
