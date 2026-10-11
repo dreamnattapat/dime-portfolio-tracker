@@ -95,6 +95,26 @@ export function saveHideAmounts(hide: boolean): void {
   }
 }
 
+// Whether the dashboard shows baht or USD (the ฿ / $ switch). Per device.
+const CURRENCY_KEY = 'currency'
+
+export function getCurrency(): '฿' | '$' {
+  try {
+    return localStorage.getItem(CURRENCY_KEY) === 'USD' ? '$' : '฿'
+  } catch {
+    return '฿'
+  }
+}
+
+export function saveCurrency(currency: '฿' | '$'): void {
+  try {
+    if (currency === '$') localStorage.setItem(CURRENCY_KEY, 'USD')
+    else localStorage.removeItem(CURRENCY_KEY)
+  } catch {
+    // Storage blocked: the choice lasts until the page is reloaded.
+  }
+}
+
 export async function clearLocalData(): Promise<void> {
   await db.transaction('rw', db.transactions, db.processedMessages, async () => {
     await db.transactions.clear()

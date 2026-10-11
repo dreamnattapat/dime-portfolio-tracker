@@ -14,7 +14,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { changeBetween, monthsBefore, rangeStart, scorecard, type TimelinePoint } from '@/lib/benchmark'
-import { formatCompactMoney, formatDate, formatMoney, formatPercent, formatSignedMoney } from '@/lib/format'
+import {
+  formatCompactMoney,
+  formatDate,
+  formatMoney,
+  formatPercent,
+  formatSignedMoney,
+  type Currency,
+} from '@/lib/format'
 
 const LINES = {
   you: { color: '--series-you', dashed: false },
@@ -71,8 +78,16 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/** Your portfolio vs the S&P 500 mirror, day by day, in baht (USD/THB moves included). */
-export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[]; hideAmounts: boolean }) {
+/** Your portfolio vs the S&P 500 mirror, day by day, in baht (USD/THB moves included) or USD. */
+export function PortfolioChart({
+  points,
+  currency,
+  hideAmounts,
+}: {
+  points: TimelinePoint[]
+  currency: Currency
+  hideAmounts: boolean
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
@@ -100,11 +115,9 @@ export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
       crosshair: { mode: CrosshairMode.Magnet, horzLine: { visible: false, labelVisible: false } },
-      localization: {
-        // Gregorian years on the axis, as everywhere else on the page.
-        locale: 'th-TH-u-ca-gregory',
-        priceFormatter: (value: number) => formatCompactMoney(value, '฿'),
-      },
+      // Gregorian years on the axis, as everywhere else on the page. The price
+      // format follows the currency and "hide amounts", so it's set by the effect below.
+      localization: { locale: 'th-TH-u-ca-gregory' },
       handleScroll: false,
       handleScale: false,
     })
@@ -137,10 +150,10 @@ export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[
     chartRef.current?.applyOptions({
       localization: {
         locale: 'th-TH-u-ca-gregory',
-        priceFormatter: (value: number) => formatCompactMoney(value, '฿'),
+        priceFormatter: (value: number) => formatCompactMoney(value, currency),
       },
     })
-  }, [hideAmounts])
+  }, [hideAmounts, currency])
 
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.
@@ -195,9 +208,16 @@ export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[
                 </svg>
                 {s.label}
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), '฿') : '—'}</dd>
+              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), currency) : '—'}</dd>
               <dd className="text-xs">
-                <RangeChange points={points} start={start} end={end} line={s.key} showAmount={view === 'value'} />
+                <RangeChange
+                  points={points}
+                  start={start}
+                  end={end}
+                  line={s.key}
+                  showAmount={view === 'value'}
+                  currency={currency}
+                />
               </dd>
             </div>
           ))}
@@ -244,7 +264,7 @@ export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[
                   <TableCell>{formatDate(p.date)}</TableCell>
                   {series.map((s) => (
                     <TableCell key={s.key} className="text-right tabular-nums">
-                      {money(s.of(p, base), '฿')}
+                      {money(s.of(p, base), currency)}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -264,6 +284,7 @@ function RangeChange({
   end,
   line,
   showAmount,
+  currency,
 }: {
   points: TimelinePoint[]
   start: number
@@ -271,6 +292,7 @@ function RangeChange({
   line: LineKey
   /** Off in the gain view, where the amount is already the big number. */
   showAmount: boolean
+  currency: Currency
 }) {
   const valueOf = VALUE_OF[line]
   if (start >= end) return <span className="text-muted-foreground">—</span>
@@ -281,8 +303,8 @@ function RangeChange({
         {Math.abs(added) < 1
           ? 'ไม่มีเงินเติมเข้า'
           : added > 0
-            ? `เติมเข้า ${formatMoney(added, '฿')}`
-            : `ถอนออก ${formatMoney(-added, '฿')}`}
+            ? `เติมเข้า ${formatMoney(added, currency)}`
+            : `ถอนออก ${formatMoney(-added, currency)}`}
       </span>
     )
   }
@@ -297,7 +319,7 @@ function RangeChange({
         {formatPercent(change.returnPct, { signed: true })}
       </span>
       {showAmount && (
-        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '฿')})</span>
+        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, currency)})</span>
       )}
     </span>
   )

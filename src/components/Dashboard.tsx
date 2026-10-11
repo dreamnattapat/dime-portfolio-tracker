@@ -14,16 +14,26 @@ import {
   formatDate,
   formatDateTime,
   formatNumber,
+  formatMoney,
   formatPercent,
-  formatSignedThb,
-  formatThb,
+  formatSignedMoney,
   localToday,
+  type Currency,
 } from '@/lib/format'
 
 /** The latest price lookup, and which trades and USD/THB rate it was for. */
 type Loaded = { key: string; portfolio: Portfolio | null; error: string | null }
 
-export function Dashboard({ transactions, hideAmounts }: { transactions: Transaction[]; hideAmounts: boolean }) {
+export function Dashboard({
+  transactions,
+  hideAmounts,
+  currency,
+}: {
+  transactions: Transaction[]
+  hideAmounts: boolean
+  /** ฿: what it's worth in baht, exchange-rate moves included. $: exact, straight from the confirmations. */
+  currency: Currency
+}) {
   const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
@@ -59,11 +69,16 @@ export function Dashboard({ transactions, hideAmounts }: { transactions: Transac
   const portfolio = loaded?.portfolio ?? null
   const error = loading ? null : (loaded?.error ?? null)
   const pending = loading ? '…' : '—'
-  const assets = useMemo(() => computeAssetPnl(analytics, portfolio?.timeline ?? null), [analytics, portfolio])
-  const unrealized = sumAssets(assets, (a) => a.unrealizedThb)
-  const totalPnl = unrealized == null ? null : analytics.realizedPnlThb + unrealized
-  // What Dime! leaves out of P&L: the exchange-rate move on what's held (less its buy fees).
-  const uncounted = portfolio && totalPnl != null ? portfolio.totalGainThb - totalPnl : null
+  const usd = currency === '$'
+  const assets = useMemo(
+    () => computeAssetPnl(analytics, portfolio?.timeline ?? null, currency),
+    [analytics, portfolio, currency],
+  )
+  const realized = usd ? analytics.realizedPnlUsd : analytics.realizedPnlThb
+  const unrealized = sumAssets(assets, (a) => a.unrealized)
+  const totalPnl = unrealized == null ? null : realized + unrealized
+  // What Dime! leaves out of baht P&L: the exchange-rate move on what's held (less its buy fees).
+  const uncounted = !usd && portfolio && totalPnl != null ? portfolio.totalGainThb - totalPnl : null
   const { stats } = analytics
 
   return (
@@ -77,25 +92,30 @@ export function Dashboard({ transactions, hideAmounts }: { transactions: Transac
         loading={loading}
         pending={pending}
         totalPnl={totalPnl}
-        realized={analytics.realizedPnlThb}
+        realized={realized}
         unrealized={unrealized}
         uncounted={uncounted}
         stats={stats}
         tradeCount={transactions.length}
         onChangeUsdThb={changeUsdThb}
+        currency={currency}
       />
 
       <Card>
         <CardHeader>
           <CardTitle>พอร์ตของคุณเทียบกับ S&P 500</CardTitle>
           <CardDescription title="ลงเงินจำนวนเดียวกัน ในวันเดียวกัน ใน SPY ไม่รวมเงินปันผลและค่าธรรมเนียมฝั่ง S&P 500">
-            การซื้อขายของคุณเทียบกับการซื้อขายแบบเดียวกันใน S&P 500 เป็นเงินบาท
+            การซื้อขายของคุณเทียบกับการซื้อขายแบบเดียวกันใน S&P 500 {usd ? 'เป็นดอลลาร์สหรัฐ' : 'เป็นเงินบาท'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {portfolio ? (
             <>
-              <PortfolioChart points={portfolio.timeline.points} hideAmounts={hideAmounts} />
+              <PortfolioChart
+                points={usd ? portfolio.timeline.pointsUsd : portfolio.timeline.points}
+                currency={currency}
+                hideAmounts={hideAmounts}
+              />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
                   ไม่มีราคาของ {portfolio.timeline.approximated.join(', ')} จึงใช้ราคาที่คุณซื้อขายล่าสุดแทน
@@ -116,7 +136,7 @@ export function Dashboard({ transactions, hideAmounts }: { transactions: Transac
           <CardDescription>ยอดที่ยังไม่รับรู้ตรงกับในแอป Dime!</CardDescription>
         </CardHeader>
         <CardContent>
-          <AssetsTable assets={assets} loading={loading} />
+          <AssetsTable assets={assets} loading={loading} currency={currency} />
         </CardContent>
       </Card>
 
@@ -131,7 +151,7 @@ export function Dashboard({ transactions, hideAmounts }: { transactions: Transac
 }
 
 const TWR_HINT =
-  '% คือผลตอบแทนแบบถ่วงน้ำหนักด้วยเวลา (TWR) เงินที่เติมหรือถอนจึงไม่นับเป็นการเติบโต ส่วน ฿ คือมูลค่าที่เปลี่ยนไปหักเงินที่เติมเข้ามา'
+  '% คือผลตอบแทนแบบถ่วงน้ำหนักด้วยเวลา (TWR) เงินที่เติมหรือถอนจึงไม่นับเป็นการเติบโต ส่วนจำนวนเงินคือมูลค่าที่เปลี่ยนไปหักเงินที่เติมเข้ามา'
 
 /** The headline numbers in one card, stamped with how the portfolio did against the S&P 500. */
 function SummaryCard({
@@ -145,6 +165,7 @@ function SummaryCard({
   stats,
   tradeCount,
   onChangeUsdThb,
+  currency,
 }: {
   portfolio: Portfolio | null
   loading: boolean
@@ -156,9 +177,13 @@ function SummaryCard({
   stats: TradeStats
   tradeCount: number
   onChangeUsdThb: (rate: number | null) => void
+  currency: Currency
 }) {
-  const day = portfolio?.day
-  const score = portfolio ? scorecard(portfolio.timeline.points, null) : null
+  const usd = currency === '$'
+  const day = usd ? portfolio?.dayUsd : portfolio?.day
+  // The stamp agrees with the chart's ทั้งหมด scorecard in the same currency.
+  const score = portfolio ? scorecard(usd ? portfolio.timeline.pointsUsd : portfolio.timeline.points, null) : null
+  const signed = (value: number | null) => formatSignedMoney(value, currency)
 
   return (
     <Card className="gap-0 px-6">
@@ -182,17 +207,30 @@ function SummaryCard({
           <div className="space-y-2">
             <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
             <p className="font-display text-4xl font-medium tabular-nums">
-              {portfolio ? formatThb(portfolio.valueThb) : pending}
+              {portfolio ? formatMoney(usd ? portfolio.valueUsd : portfolio.valueThb, currency) : pending}
             </p>
             <div className="space-y-1 pt-1 text-sm">
               <Delta
                 label="1D"
                 change={day}
                 pending={!portfolio}
-                title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
+                currency={currency}
+                title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
               />
-              <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
-              <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
+              <Delta
+                label="MoM"
+                change={usd ? portfolio?.momUsd : portfolio?.mom}
+                pending={!portfolio}
+                currency={currency}
+                title={TWR_HINT}
+              />
+              <Delta
+                label="YoY"
+                change={usd ? portfolio?.yoyUsd : portfolio?.yoy}
+                pending={!portfolio}
+                currency={currency}
+                title={TWR_HINT}
+              />
             </div>
           </div>
 
@@ -202,17 +240,17 @@ function SummaryCard({
             <SlipRow
               label="กำไร/ขาดทุนรวม"
               strong
-              value={totalPnl == null ? pending : formatSignedThb(totalPnl)}
+              value={totalPnl == null ? pending : signed(totalPnl)}
               tone={totalPnl}
             />
-            <SlipRow label="รับรู้แล้ว" indent value={formatSignedThb(realized)} />
+            <SlipRow label="รับรู้แล้ว" indent value={signed(realized)} />
             <SlipRow
               label="ยังไม่รับรู้"
               indent
-              value={unrealized == null ? pending : formatSignedThb(unrealized)}
+              value={unrealized == null ? pending : signed(unrealized)}
               title={
                 uncounted != null && Math.abs(uncounted) >= 1
-                  ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${formatSignedThb(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
+                  ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${signed(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
                   : undefined
               }
             />
@@ -241,7 +279,11 @@ function SummaryCard({
         </footer>
         {portfolio && (
           <div className="text-muted-foreground mt-4 text-xs leading-relaxed">
-            <UsdThbSetting portfolio={portfolio} onChange={onChangeUsdThb} />
+            {usd ? (
+              <p>ยอด USD ตรงกับใบยืนยันการซื้อขายและแอป Dime! ไม่ขึ้นกับอัตราแลกเปลี่ยน</p>
+            ) : (
+              <UsdThbSetting portfolio={portfolio} onChange={onChangeUsdThb} />
+            )}
           </div>
         )}
       </section>
@@ -284,7 +326,12 @@ function UsdThbSetting({ portfolio, onChange }: { portfolio: Portfolio; onChange
         </label>
         <p>หาได้จากแอป Dime!: เอามูลค่าเป็นบาทของหุ้นตัวไหนก็ได้ หารด้วยมูลค่าเป็น USD เช่น 33,420 ÷ 1,000 = 33.42</p>
         <div className="flex gap-2">
-          <Button type="submit" size="sm" className="bg-brand hover:bg-brand/90 rounded-full text-white" disabled={!valid}>
+          <Button
+            type="submit"
+            size="sm"
+            className="bg-brand hover:bg-brand/90 rounded-full text-white"
+            disabled={!valid}
+          >
             ใช้เรทนี้
           </Button>
           <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
@@ -298,7 +345,9 @@ function UsdThbSetting({ portfolio, onChange }: { portfolio: Portfolio; onChange
   return (
     <p>
       เรท {formatNumber(rate, 2)} บาท/ดอลลาร์{' '}
-      {portfolio.usdThbOverridden ? `(เรทที่คุณตั้ง ราคาตลาด ${formatNumber(portfolio.marketUsdThb, 2)})` : '(ราคาตลาด)'}{' '}
+      {portfolio.usdThbOverridden
+        ? `(เรทที่คุณตั้ง ราคาตลาด ${formatNumber(portfolio.marketUsdThb, 2)})`
+        : '(ราคาตลาด)'}{' '}
       <button
         type="button"
         className="text-brand font-medium underline-offset-2 hover:underline"
@@ -376,11 +425,13 @@ function Delta({
   change,
   pending,
   title,
+  currency,
 }: {
   label: string
   change?: PeriodChange | null
   pending: boolean
   title: string
+  currency: Currency
 }) {
   if (!change) {
     return (
@@ -398,7 +449,7 @@ function Delta({
         <Arrow className="size-4" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
-      <span className="text-muted-foreground tabular-nums">({formatSignedThb(change.gain)})</span>
+      <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, currency)})</span>
     </p>
   )
 }

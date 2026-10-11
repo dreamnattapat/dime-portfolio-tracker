@@ -7,26 +7,34 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePagination } from '@/hooks/usePagination'
 import { sumAssets, type AssetPnl } from '@/lib/assets'
-import { formatNumber, formatPercent, formatSignedThb, formatThb, formatUnits } from '@/lib/format'
+import { formatMoney, formatNumber, formatPercent, formatSignedMoney, formatUnits, type Currency } from '@/lib/format'
 
 const COLUMNS = [
   { key: 'security', label: 'สินทรัพย์', numeric: false },
-  { key: 'valueThb', label: 'มูลค่า', numeric: true },
-  { key: 'unrealizedThb', label: 'ยังไม่รับรู้', numeric: true },
-  { key: 'realizedThb', label: 'รับรู้แล้ว', numeric: true },
-  { key: 'totalThb', label: 'กำไร/ขาดทุนรวม', numeric: true },
+  { key: 'value', label: 'มูลค่า', numeric: true },
+  { key: 'unrealized', label: 'ยังไม่รับรู้', numeric: true },
+  { key: 'realized', label: 'รับรู้แล้ว', numeric: true },
+  { key: 'total', label: 'กำไร/ขาดทุนรวม', numeric: true },
 ] as const
 
 type SortKey = (typeof COLUMNS)[number]['key']
 
 /** Each security's profit and loss: unrealized on what's still held, realized on what was sold. */
-export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; loading: boolean }) {
+export function AssetsTable({
+  assets: all,
+  loading,
+  currency,
+}: {
+  assets: AssetPnl[]
+  loading: boolean
+  currency: Currency
+}) {
   const [filter, setFilter] = useState<'all' | 'held'>('all')
-  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'valueThb', desc: true })
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'value', desc: true })
 
   const filtered = filter === 'held' ? all.filter((r) => r.held) : all
   const sorted = filtered.toSorted((a, b) => {
-    const order = compare(a[sort.key], b[sort.key]) || compare(a.totalThb, b.totalThb)
+    const order = compare(a[sort.key], b[sort.key]) || compare(a.total, b.total)
     return sort.desc ? -order : order
   })
   const { rows, pager } = usePagination(sorted)
@@ -87,11 +95,16 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
                 {r.approximated && <span title="ไม่มีราคาตลาด ใช้ราคาซื้อขายล่าสุดแทน">*</span>}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {!r.held ? '—' : r.valueThb == null ? pending : formatThb(r.valueThb)}
+                {!r.held ? '—' : r.value == null ? pending : formatMoney(r.value, currency)}
               </TableCell>
-              <PnlCell value={r.held ? r.unrealizedThb : null} pct={r.unrealizedPct} empty={r.held ? pending : '—'} />
-              <PnlCell value={r.realizedThb || null} empty="—" />
-              <PnlCell value={r.totalThb} pct={r.totalPct} empty={pending} strong />
+              <PnlCell
+                value={r.held ? r.unrealized : null}
+                pct={r.unrealizedPct}
+                empty={r.held ? pending : '—'}
+                currency={currency}
+              />
+              <PnlCell value={r.realized || null} empty="—" currency={currency} />
+              <PnlCell value={r.total} pct={r.totalPct} empty={pending} strong currency={currency} />
             </TableRow>
           ))}
         </TableBody>
@@ -99,11 +112,16 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
           <TableRow>
             <TableCell colSpan={4}>รวม{filter === 'held' ? ' (ที่ถืออยู่)' : ''}</TableCell>
             <TableCell className="text-right tabular-nums">
-              {sum((r) => r.valueThb) == null ? pending : formatThb(sum((r) => r.valueThb))}
+              {sum((r) => r.value) == null
+                ? pending
+                : formatMoney(
+                    sum((r) => r.value),
+                    currency,
+                  )}
             </TableCell>
-            <PnlCell value={sum((r) => r.unrealizedThb)} empty={pending} />
-            <PnlCell value={sum((r) => r.realizedThb)} empty="—" />
-            <PnlCell value={sum((r) => r.totalThb)} empty={pending} strong />
+            <PnlCell value={sum((r) => r.unrealized)} empty={pending} currency={currency} />
+            <PnlCell value={sum((r) => r.realized)} empty="—" currency={currency} />
+            <PnlCell value={sum((r) => r.total)} empty={pending} strong currency={currency} />
           </TableRow>
         </TableFooter>
       </Table>
@@ -150,17 +168,19 @@ function PnlCell({
   pct,
   empty,
   strong = false,
+  currency,
 }: {
   value: number | null
   pct?: number | null
   empty: string
   strong?: boolean
+  currency: Currency
 }) {
   if (value == null) return <TableCell className="text-muted-foreground text-right">{empty}</TableCell>
   const color = value > 0 ? 'text-delta-up' : value < 0 ? 'text-delta-down' : ''
   return (
     <TableCell className={`text-right tabular-nums ${color} ${strong ? 'font-semibold' : ''}`}>
-      {formatSignedThb(value)}
+      {formatSignedMoney(value, currency)}
       {pct != null && <div className="text-xs opacity-80">{formatPercent(pct, { signed: true, decimals: 2 })}</div>}
     </TableCell>
   )

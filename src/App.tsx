@@ -10,8 +10,17 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { parseBirthdate } from '@/lib/birthdate'
-import { clearLocalData, db, getHideAmounts, getLastSyncedAt, saveHideAmounts, setLastSyncedAt } from '@/lib/db'
-import { formatDateTime, setHideAmounts } from '@/lib/format'
+import {
+  clearLocalData,
+  db,
+  getCurrency,
+  getHideAmounts,
+  getLastSyncedAt,
+  saveCurrency,
+  saveHideAmounts,
+  setLastSyncedAt,
+} from '@/lib/db'
+import { formatDateTime, setHideAmounts, type Currency } from '@/lib/format'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
 import { WrongPasswordError } from '@/lib/pdf'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
@@ -32,6 +41,14 @@ export default function App() {
   // The eye button: hide money amounts and share counts, keep percentages.
   const [hideAmounts, setHide] = useState(getHideAmounts)
   setHideAmounts(hideAmounts)
+
+  // The ฿ / $ switch: USD figures are exact; baht ones include exchange-rate moves.
+  const [currency, setCurrency] = useState<Currency>(getCurrency)
+
+  function chooseCurrency(next: Currency) {
+    saveCurrency(next)
+    setCurrency(next)
+  }
 
   function toggleHideAmounts() {
     saveHideAmounts(!hideAmounts)
@@ -154,8 +171,8 @@ export default function App() {
                 </h1>
               </div>
               <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
-                กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
-                ของคุณ ใช้ฟรี ไม่ต้องสมัครสมาชิก
+                กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail ของคุณ
+                ใช้ฟรี ไม่ต้องสมัครสมาชิก
               </p>
             </header>
           )}
@@ -227,6 +244,26 @@ export default function App() {
                 >
                   {hideAmounts ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
                 </button>
+                <div
+                  className="bg-card ml-1 flex rounded-full p-0.5 text-sm shadow-[0_1px_2px_rgb(120_60_20/0.08)]"
+                  role="group"
+                  aria-label="สกุลเงิน"
+                >
+                  {(['฿', '$'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => chooseCurrency(c)}
+                      aria-pressed={currency === c}
+                      title={c === '฿' ? 'แสดงเป็นเงินบาท' : 'แสดงเป็นดอลลาร์ (ตรงกับยอด USD ในแอป Dime!)'}
+                      className={`min-w-8 rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
+                        currency === c ? 'bg-brand text-white' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
               {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
             </div>
@@ -238,7 +275,9 @@ export default function App() {
 
           {syncing && progress && <SyncStatus progress={progress} />}
 
-          {transactions.length > unparsedCount && <Dashboard transactions={transactions} hideAmounts={hideAmounts} />}
+          {transactions.length > unparsedCount && (
+            <Dashboard transactions={transactions} hideAmounts={hideAmounts} currency={currency} />
+          )}
 
           <Card>
             <CardHeader>

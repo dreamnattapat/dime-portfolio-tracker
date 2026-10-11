@@ -66,7 +66,16 @@ describe('computeAnalytics', () => {
       // FIFO keeps the 200/unit lot; Dime!'s average cost keeps 5 units at the 150/unit average.
       { security: 'AAPL', units: 5, costBasisThb: 1000, avgCostBasisUsd: expect.closeTo(750 / 33) },
     ])
-    expect(result.assets).toEqual([{ security: 'AAPL', boughtThb: 3000, realizedPnlThb: expect.closeTo(1000) }])
+    expect(result.assets).toEqual([
+      {
+        security: 'AAPL',
+        boughtThb: 3000,
+        boughtUsd: expect.closeTo(3000 / 33),
+        realizedPnlThb: expect.closeTo(1000),
+        realizedPnlUsd: expect.closeTo(1000 / 33),
+      },
+    ])
+    expect(result.realizedPnlUsd).toBeCloseTo(1000 / 33)
   })
 
   it('sorts by date, not by the order rows are stored in', () => {

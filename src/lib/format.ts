@@ -47,11 +47,14 @@ const compactFormat = new Intl.NumberFormat('en-US', { notation: 'compact', maxi
 
 export type Currency = '฿' | '$'
 
-/** 1234567.8 -> "฿1,234,568"; negative as "-฿1,234,568". Whole units. */
+const centsFormat = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** 1234567.8 -> "฿1,234,568" (whole baht) or "$1,234,567.80" (with cents); negative as "-฿1,234,568". */
 export function formatMoney(value: number | null | undefined, currency: Currency): string {
   if (value == null) return '—'
   if (hideAmounts) return MASK
-  return `${value < 0 ? '-' : ''}${currency}${wholeFormat.format(Math.abs(value))}`
+  const format = currency === '$' ? centsFormat : wholeFormat
+  return `${value < 0 ? '-' : ''}${currency}${format.format(Math.abs(value))}`
 }
 
 /** Like formatMoney, with "+" on gains. */

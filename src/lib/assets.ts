@@ -1,14 +1,14 @@
 /**
- * Profit and loss per security, the way the Dime! app shows it.
+ * Profit and loss per security, the way the Dime! app shows it, in baht or USD.
  *
- * Unrealized P&L follows Dime!: (price - average cost) x units in USD,
- * converted at today's USD/THB rate, with the average cost excluding fees.
- * So it's the stock's own move; a change in the exchange rate since you
- * bought isn't counted as profit. Realized P&L is the actual baht from FIFO
- * (analytics.ts).
+ * Unrealized P&L follows Dime!: (price - average cost) x units in USD, with
+ * the average cost excluding fees; in baht, converted at today's USD/THB
+ * rate. So it's the stock's own move; a change in the exchange rate since you
+ * bought isn't counted as profit. Realized P&L comes from FIFO (analytics.ts).
  */
 import type { Analytics } from '@/lib/analytics'
 import type { Timeline } from '@/lib/benchmark'
+import type { Currency } from '@/lib/format'
 
 export type AssetPnl = {
   security: string
@@ -17,18 +17,20 @@ export type AssetPnl = {
   units: number | null
   avgCostUsd: number | null
   priceUsd: number | null
-  valueThb: number | null
-  unrealizedThb: number | null
+  /** Money columns are in the requested currency. */
+  value: number | null
+  unrealized: number | null
   /** Price vs average cost, %. */
   unrealizedPct: number | null
-  realizedThb: number
-  totalThb: number | null
+  realized: number
+  total: number | null
   /** Total P&L as % of everything ever spent buying it. */
   totalPct: number | null
   approximated: boolean
 }
 
-export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null): AssetPnl[] {
+export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null, currency: Currency = '฿'): AssetPnl[] {
+  const usd = currency === '$'
   return analytics.assets.map((asset) => {
     const open = analytics.openPositions.find((p) => p.security === asset.security)
     const holding = timeline?.holdings.find((h) => h.security === asset.security)
@@ -41,10 +43,13 @@ export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null)
     let unrealizedPct: number | null = null
     if (open && holding && timeline) {
       const marketUsd = holding.units * holding.priceUsd
-      unrealized = (marketUsd - open.avgCostBasisUsd) * timeline.usdThb
+      unrealized = (marketUsd - open.avgCostBasisUsd) * (usd ? 1 : timeline.usdThb)
       unrealizedPct = open.avgCostBasisUsd ? (marketUsd / open.avgCostBasisUsd - 1) * 100 : null
     }
-    const total = unrealized == null ? null : asset.realizedPnlThb + unrealized
+    const realized = usd ? asset.realizedPnlUsd : asset.realizedPnlThb
+    const bought = usd ? asset.boughtUsd : asset.boughtThb
+    const total = unrealized == null ? null : realized + unrealized
+    const value = holding ? (usd ? holding.units * holding.priceUsd : holding.valueThb) : null
 
     return {
       security: asset.security,
@@ -52,12 +57,12 @@ export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null)
       units,
       avgCostUsd,
       priceUsd: holding?.priceUsd ?? null,
-      valueThb: held ? (holding?.valueThb ?? null) : 0,
-      unrealizedThb: unrealized,
+      value: held ? value : 0,
+      unrealized,
       unrealizedPct,
-      realizedThb: asset.realizedPnlThb,
-      totalThb: total,
-      totalPct: total != null && asset.boughtThb ? (total / asset.boughtThb) * 100 : null,
+      realized,
+      total,
+      totalPct: total != null && bought ? (total / bought) * 100 : null,
       approximated: holding?.approximated ?? false,
     }
   })

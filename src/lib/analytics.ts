@@ -43,6 +43,8 @@ export type ClosedTrade = {
   proceedsThb: number
   costThb: number
   pnlThb: number
+  /** The same trade in USD, from the confirmations' own USD amounts (exact, no exchange rate). */
+  pnlUsd: number
   pnlPct: number | null
   win: boolean
   /** False when more was sold than bought on record (e.g. bought before the Gmail history). */
@@ -67,7 +69,9 @@ export type AssetTotals = {
   security: string
   /** Everything ever spent buying it. */
   boughtThb: number
+  boughtUsd: number
   realizedPnlThb: number
+  realizedPnlUsd: number
 }
 
 /** Why a high win rate alone doesn't mean the trading pays. */
@@ -90,6 +94,7 @@ export type TradeStats = {
 
 export type Analytics = {
   realizedPnlThb: number
+  realizedPnlUsd: number
   assets: AssetTotals[]
   trades: ClosedTrade[]
   openPositions: OpenPosition[]
@@ -107,7 +112,8 @@ export function compareOldestFirst(a: ParsedTransaction, b: ParsedTransaction): 
   return tradeDate(a).localeCompare(tradeDate(b)) || Number(a.orderId) - Number(b.orderId)
 }
 
-type Lot = { units: number; costPerUnit: number }
+/** Cost per unit in THB and, for the USD view, in USD. */
+type Lot = { units: number; costPerUnit: number; costPerUnitUsd: number }
 
 /** Dime!'s average-cost bookkeeping for one security, in USD excluding fees. */
 type AverageCost = { units: number; costUsd: number }
@@ -141,14 +147,23 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
     let queue = lots.get(row.security)
     if (!queue) lots.set(row.security, (queue = []))
     let asset = assets.get(row.security)
-    if (!asset) assets.set(row.security, (asset = { security: row.security, boughtThb: 0, realizedPnlThb: 0 }))
+    if (!asset)
+      assets.set(
+        row.security,
+        (asset = { security: row.security, boughtThb: 0, boughtUsd: 0, realizedPnlThb: 0, realizedPnlUsd: 0 }),
+      )
     let average = averages.get(row.security)
     if (!average) averages.set(row.security, (average = { units: 0, costUsd: 0 }))
 
     if (!isSell) {
       // Buy, Reward, Exercise Call/Put: a new cost-basis lot.
-      queue.push({ units: row.units, costPerUnit: row.units ? row.totalAmountThb / row.units : 0 })
+      queue.push({
+        units: row.units,
+        costPerUnit: row.units ? row.totalAmountThb / row.units : 0,
+        costPerUnitUsd: row.units ? row.totalAmount / row.units : 0,
+      })
       asset.boughtThb += row.totalAmountThb
+      asset.boughtUsd += row.totalAmount
       average.units += row.units
       average.costUsd += row.units * row.unitPrice
       continue
@@ -156,16 +171,20 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
 
     let toSell = row.units
     let matchedCost = 0
+    let matchedCostUsd = 0
     while (toSell > EPS && queue.length) {
       const lot = queue[0]
       const take = Math.min(lot.units, toSell)
       matchedCost += take * lot.costPerUnit
+      matchedCostUsd += take * lot.costPerUnitUsd
       toSell -= take
       if (take >= lot.units - EPS) queue.shift()
       else lot.units -= take
     }
     const pnl = proceedsThb - matchedCost
+    const pnlUsd = net.usd - matchedCostUsd
     asset.realizedPnlThb += pnl
+    asset.realizedPnlUsd += pnlUsd
     if (average.units - row.units > EPS) {
       average.costUsd -= (average.costUsd / average.units) * row.units
       average.units -= row.units
@@ -179,6 +198,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
       proceedsThb,
       costThb: matchedCost,
       pnlThb: pnl,
+      pnlUsd,
       pnlPct: matchedCost ? (pnl / matchedCost) * 100 : null,
       win: pnl > 0,
       basisComplete: toSell <= EPS,
@@ -198,6 +218,7 @@ export function computeAnalytics(transactions: Transaction[]): Analytics {
 
   return {
     realizedPnlThb: trades.reduce((sum, t) => sum + t.pnlThb, 0),
+    realizedPnlUsd: trades.reduce((sum, t) => sum + t.pnlUsd, 0),
     assets: [...assets.values()],
     trades: trades.reverse(), // newest first
     openPositions,
