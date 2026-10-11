@@ -180,6 +180,11 @@ function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pendin
         <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
         <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
       </div>
+      {/* Only stock trades come in by email, so cash held elsewhere in Dime! can't be counted. */}
+      <p className="text-muted-foreground border-t pt-3 text-xs leading-relaxed">
+        นับเฉพาะหุ้นที่ซื้อขายผ่าน Dime! ยังไม่รวมเงินใน Dime! Save, บัญชี FCD และเงินสด USD
+        เพราะเว็บนี้อ่านได้แค่ใบยืนยันการซื้อขาย
+      </p>
     </StatCard>
   )
 }
