@@ -1,3 +1,15 @@
+/**
+ * "Hide amounts" (the eye button): money and share counts render as a mask,
+ * percentages stay visible. A module flag rather than React state, so every
+ * formatter honours it; the app sets it on each render and re-renders on toggle.
+ */
+export const MASK = '******'
+let hideAmounts = false
+
+export function setHideAmounts(hide: boolean): void {
+  hideAmounts = hide
+}
+
 const numberFormats = new Map<number, Intl.NumberFormat>()
 
 export function formatNumber(value: number | null | undefined, decimals = 2): string {
@@ -10,8 +22,14 @@ export function formatNumber(value: number | null | undefined, decimals = 2): st
   return format.format(value)
 }
 
+/** An amount of money as a plain number (no currency sign); masked when amounts are hidden. */
+export function formatAmount(value: number | null | undefined, decimals = 2): string {
+  return hideAmounts && value != null ? MASK : formatNumber(value, decimals)
+}
+
 /** Units are fractional with up to 7 decimals; show only the ones in use. */
 export function formatUnits(value: number): string {
+  if (hideAmounts) return MASK
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 7 }).format(value)
 }
 
@@ -32,17 +50,20 @@ export type Currency = '฿' | '$'
 /** 1234567.8 -> "฿1,234,568"; negative as "-฿1,234,568". Whole units. */
 export function formatMoney(value: number | null | undefined, currency: Currency): string {
   if (value == null) return '—'
+  if (hideAmounts) return MASK
   return `${value < 0 ? '-' : ''}${currency}${wholeFormat.format(Math.abs(value))}`
 }
 
 /** Like formatMoney, with "+" on gains. */
 export function formatSignedMoney(value: number | null | undefined, currency: Currency): string {
   if (value == null) return '—'
+  if (hideAmounts) return MASK
   return value > 0 ? `+${formatMoney(value, currency)}` : formatMoney(value, currency)
 }
 
 /** 1234567 -> "$1.2M", for chart axes. */
 export function formatCompactMoney(value: number, currency: Currency): string {
+  if (hideAmounts) return '***'
   return `${value < 0 ? '-' : ''}${currency}${compactFormat.format(Math.abs(value))}`
 }
 

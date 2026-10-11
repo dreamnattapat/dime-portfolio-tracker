@@ -72,7 +72,7 @@ function cssVar(name: string): string {
 }
 
 /** Your portfolio vs the S&P 500 mirror, day by day, in baht (USD/THB moves included). */
-export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
+export function PortfolioChart({ points, hideAmounts }: { points: TimelinePoint[]; hideAmounts: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
@@ -131,6 +131,16 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       seriesByKey.clear()
     }
   }, [])
+
+  // The axis labels are drawn by the chart, not React: redraw them when amounts are hidden or shown.
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      localization: {
+        locale: 'th-TH-u-ca-gregory',
+        priceFormatter: (value: number) => formatCompactMoney(value, '฿'),
+      },
+    })
+  }, [hideAmounts])
 
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.

@@ -75,6 +75,26 @@ export function setUsdThbOverride(rate: number | null): void {
   }
 }
 
+// Whether amounts are hidden (the eye button). Per device, like the sync time.
+const HIDE_AMOUNTS_KEY = 'hideAmounts'
+
+export function getHideAmounts(): boolean {
+  try {
+    return localStorage.getItem(HIDE_AMOUNTS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function saveHideAmounts(hide: boolean): void {
+  try {
+    if (hide) localStorage.setItem(HIDE_AMOUNTS_KEY, '1')
+    else localStorage.removeItem(HIDE_AMOUNTS_KEY)
+  } catch {
+    // Storage blocked: the choice lasts until the page is reloaded.
+  }
+}
+
 export async function clearLocalData(): Promise<void> {
   await db.transaction('rw', db.transactions, db.processedMessages, async () => {
     await db.transactions.clear()

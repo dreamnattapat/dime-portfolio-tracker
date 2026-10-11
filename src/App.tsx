@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Dashboard } from '@/components/Dashboard'
@@ -10,8 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { parseBirthdate } from '@/lib/birthdate'
-import { clearLocalData, db, getLastSyncedAt, setLastSyncedAt } from '@/lib/db'
-import { formatDateTime } from '@/lib/format'
+import { clearLocalData, db, getHideAmounts, getLastSyncedAt, saveHideAmounts, setLastSyncedAt } from '@/lib/db'
+import { formatDateTime, setHideAmounts } from '@/lib/format'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
 import { WrongPasswordError } from '@/lib/pdf'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
@@ -29,6 +29,14 @@ export default function App() {
   const [noEmailsFound, setNoEmailsFound] = useState(false)
   // Returning users land on their dashboard; "sync" takes them back through the steps.
   const [setupOpen, setSetupOpen] = useState(false)
+  // The eye button: hide money amounts and share counts, keep percentages.
+  const [hideAmounts, setHide] = useState(getHideAmounts)
+  setHideAmounts(hideAmounts)
+
+  function toggleHideAmounts() {
+    saveHideAmounts(!hideAmounts)
+    setHide(!hideAmounts)
+  }
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const [syncedAt, setSyncedAt] = useState(getLastSyncedAt)
@@ -207,7 +215,19 @@ export default function App() {
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
               <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
-              <h1 className="font-display text-2xl font-medium sm:text-3xl">พอร์ตของคุณ</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display text-2xl font-medium sm:text-3xl">พอร์ตของคุณ</h1>
+                <button
+                  type="button"
+                  onClick={toggleHideAmounts}
+                  className="text-muted-foreground hover:text-foreground hover:bg-card rounded-full p-2 transition-colors"
+                  aria-label={hideAmounts ? 'แสดงตัวเลข' : 'ซ่อนตัวเลข'}
+                  aria-pressed={hideAmounts}
+                  title={hideAmounts ? 'แสดงตัวเลข' : 'ซ่อนตัวเลข'}
+                >
+                  {hideAmounts ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
+                </button>
+              </div>
               {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
             </div>
             <Button variant="outline" className="bg-card rounded-full" onClick={syncFromDashboard} disabled={syncing}>
@@ -218,7 +238,7 @@ export default function App() {
 
           {syncing && progress && <SyncStatus progress={progress} />}
 
-          {transactions.length > unparsedCount && <Dashboard transactions={transactions} />}
+          {transactions.length > unparsedCount && <Dashboard transactions={transactions} hideAmounts={hideAmounts} />}
 
           <Card>
             <CardHeader>

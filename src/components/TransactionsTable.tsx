@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { usePagination } from '@/hooks/usePagination'
 import type { Transaction } from '@/lib/db'
 import type { TransactionType } from '@/lib/dime/parser'
-import { formatDate, formatNumber, formatUnits } from '@/lib/format'
+import { formatAmount, formatDate, formatNumber, formatUnits } from '@/lib/format'
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   Buy: 'ซื้อ',
@@ -58,8 +58,8 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
                 <TableCell className="font-medium">{tx.security}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatUnits(tx.units)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(tx.unitPrice)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(tx.totalAmount)}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatNumber(tx.totalAmountThb)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatAmount(tx.totalAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatAmount(tx.totalAmountThb)}</TableCell>
               </TableRow>
             ) : (
               <TableRow key={tx.id}>

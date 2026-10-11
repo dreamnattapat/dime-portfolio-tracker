@@ -23,7 +23,7 @@ import {
 /** The latest price lookup, and which trades and USD/THB rate it was for. */
 type Loaded = { key: string; portfolio: Portfolio | null; error: string | null }
 
-export function Dashboard({ transactions }: { transactions: Transaction[] }) {
+export function Dashboard({ transactions, hideAmounts }: { transactions: Transaction[]; hideAmounts: boolean }) {
   const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
@@ -95,7 +95,7 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
         <CardContent>
           {portfolio ? (
             <>
-              <PortfolioChart points={portfolio.timeline.points} />
+              <PortfolioChart points={portfolio.timeline.points} hideAmounts={hideAmounts} />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
                   ไม่มีราคาของ {portfolio.timeline.approximated.join(', ')} จึงใช้ราคาที่คุณซื้อขายล่าสุดแทน
