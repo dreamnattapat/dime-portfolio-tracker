@@ -89,13 +89,13 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
         <CardHeader>
           <CardTitle>พอร์ตของคุณเทียบกับ S&P 500</CardTitle>
           <CardDescription title="ลงเงินจำนวนเดียวกัน ในวันเดียวกัน ใน SPY ไม่รวมเงินปันผลและค่าธรรมเนียมฝั่ง S&P 500">
-            การซื้อขายของคุณเทียบกับการซื้อขายแบบเดียวกันใน S&P 500 เป็นดอลลาร์สหรัฐ
+            การซื้อขายของคุณเทียบกับการซื้อขายแบบเดียวกันใน S&P 500 เป็นเงินบาท
           </CardDescription>
         </CardHeader>
         <CardContent>
           {portfolio ? (
             <>
-              <PortfolioChart points={portfolio.timeline.pointsUsd} />
+              <PortfolioChart points={portfolio.timeline.points} />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
                   ไม่มีราคาของ {portfolio.timeline.approximated.join(', ')} จึงใช้ราคาที่คุณซื้อขายล่าสุดแทน
@@ -158,7 +158,7 @@ function SummaryCard({
   onChangeUsdThb: (rate: number | null) => void
 }) {
   const day = portfolio?.day
-  const score = portfolio ? scorecard(portfolio.timeline.pointsUsd, null) : null
+  const score = portfolio ? scorecard(portfolio.timeline.points, null) : null
 
   return (
     <Card className="gap-0 px-6">

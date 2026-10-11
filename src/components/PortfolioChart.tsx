@@ -71,7 +71,7 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/** Your portfolio vs the S&P 500 mirror, day by day. Expects USD points. */
+/** Your portfolio vs the S&P 500 mirror, day by day, in baht (USD/THB moves included). */
 export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -103,7 +103,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       localization: {
         // Gregorian years on the axis, as everywhere else on the page.
         locale: 'th-TH-u-ca-gregory',
-        priceFormatter: (value: number) => formatCompactMoney(value, '$'),
+        priceFormatter: (value: number) => formatCompactMoney(value, '฿'),
       },
       handleScroll: false,
       handleScale: false,
@@ -185,7 +185,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                 </svg>
                 {s.label}
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), '$') : '—'}</dd>
+              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), '฿') : '—'}</dd>
               <dd className="text-xs">
                 <RangeChange points={points} start={start} end={end} line={s.key} showAmount={view === 'value'} />
               </dd>
@@ -234,7 +234,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
                   <TableCell>{formatDate(p.date)}</TableCell>
                   {series.map((s) => (
                     <TableCell key={s.key} className="text-right tabular-nums">
-                      {money(s.of(p, base), '$')}
+                      {money(s.of(p, base), '฿')}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -271,8 +271,8 @@ function RangeChange({
         {Math.abs(added) < 1
           ? 'ไม่มีเงินเติมเข้า'
           : added > 0
-            ? `เติมเข้า ${formatMoney(added, '$')}`
-            : `ถอนออก ${formatMoney(-added, '$')}`}
+            ? `เติมเข้า ${formatMoney(added, '฿')}`
+            : `ถอนออก ${formatMoney(-added, '฿')}`}
       </span>
     )
   }
@@ -287,7 +287,7 @@ function RangeChange({
         {formatPercent(change.returnPct, { signed: true })}
       </span>
       {showAmount && (
-        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '$')})</span>
+        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, '฿')})</span>
       )}
     </span>
   )
