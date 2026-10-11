@@ -139,20 +139,11 @@ export default function App() {
             </Button>
           ) : (
             <header className="space-y-4">
-              <div className="flex items-end gap-4">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
-                  <h1 className="font-display text-[1.75rem] leading-tight font-medium sm:text-4xl">
-                    สรุปพอร์ตจากอีเมลของคุณ
-                  </h1>
-                </div>
-                <img
-                  src="/mood-up.jpg"
-                  alt=""
-                  width={344}
-                  height={360}
-                  className="h-28 w-[104px] shrink-0 rounded-3xl object-cover sm:h-36 sm:w-[136px]"
-                />
+              <div className="space-y-2">
+                <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
+                <h1 className="font-display text-[1.75rem] leading-tight font-medium sm:text-4xl">
+                  สรุปพอร์ตจากอีเมลของคุณ
+                </h1>
               </div>
               <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
                 กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
