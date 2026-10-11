@@ -117,9 +117,9 @@ export default function App() {
   const step = connected ? 2 : 1
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-12 sm:pt-12">
+    <main className="desk mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-12 sm:pt-12">
       {!clientId && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="paper">
           <AlertTitle>ยังไม่ได้ตั้งค่าการเข้าสู่ระบบด้วย Google</AlertTitle>
           <AlertDescription>
             <p>
@@ -167,7 +167,7 @@ export default function App() {
           )}
 
           {noEmailsFound && (
-            <Alert>
+            <Alert className="paper">
               <AlertTitle>ไม่พบอีเมลจาก Dime! ใน Gmail นี้</AlertTitle>
               <AlertDescription>
                 ตรวจสอบว่าเชื่อมต่อบัญชี Gmail ที่ใช้รับใบยืนยันการซื้อขายจาก Dime!{' '}
@@ -179,7 +179,7 @@ export default function App() {
           )}
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="paper">
               <AlertTitle>ทำต่อไม่ได้</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -214,7 +214,7 @@ export default function App() {
 
           {syncing && progress && <SyncStatus progress={progress} />}
 
-          {transactions.length > unparsedCount && <Dashboard transactions={transactions} lastSynced={null} />}
+          {transactions.length > unparsedCount && <Dashboard transactions={transactions} />}
 
           <Card>
             <CardHeader>

@@ -1,12 +1,12 @@
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ArrowDownRight, ArrowUpRight, Check } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { AssetsTable } from '@/components/AssetsTable'
 import { DayMood } from '@/components/DayMood'
 import { PortfolioChart } from '@/components/PortfolioChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
-import { buildPortfolio, type PeriodChange, type Portfolio } from '@/lib/benchmark'
+import { buildPortfolio, scorecard, type PeriodChange, type Portfolio } from '@/lib/benchmark'
 import { computeAssetPnl, sumAssets } from '@/lib/assets'
 import type { Transaction } from '@/lib/db'
 import {
@@ -22,7 +22,7 @@ import {
 /** The latest price lookup, and which trades it was for. */
 type Loaded = { flowsKey: string; portfolio: Portfolio | null; error: string | null }
 
-export function Dashboard({ transactions, lastSynced }: { transactions: Transaction[]; lastSynced: string | null }) {
+export function Dashboard({ transactions }: { transactions: Transaction[] }) {
   const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
@@ -60,54 +60,24 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground text-xs">
-        {lastSynced && <>ซิงก์เมื่อ {formatDateTime(lastSynced)}</>}
-        {lastSynced && ' · '}
-        {loading ? 'กำลังดึงราคา…' : portfolio?.pricesAsOf ? `ราคา ณ ${formatDateTime(portfolio.pricesAsOf)}` : null}
-      </p>
-
       {error && (
         <p className="text-muted-foreground text-sm">ไม่มีข้อมูลราคา ({error}) จึงแสดงเฉพาะกำไร/ขาดทุนที่รับรู้แล้ว</p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <ValueCard portfolio={portfolio} pending={pending} />
-
-        <StatCard label="กำไร/ขาดทุนรวม">
-          <p className="text-3xl font-semibold tracking-tight">
-            {totalPnl == null ? pending : formatSignedThb(totalPnl)}
-          </p>
-          <dl className="text-muted-foreground space-y-1 text-sm">
-            <Row label="รับรู้แล้ว">{formatSignedThb(analytics.realizedPnlThb)}</Row>
-            <Row
-              label="ยังไม่รับรู้"
-              title={
-                uncounted != null && Math.abs(uncounted) >= 1
-                  ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${formatSignedThb(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
-                  : undefined
-              }
-            >
-              {unrealized == null ? pending : formatSignedThb(unrealized)}
-            </Row>
-          </dl>
-        </StatCard>
-
-        <StatCard label="อัตราชนะ">
-          <p className="text-3xl font-semibold tracking-tight">{formatPercent(stats.winRatePct, { decimals: 0 })}</p>
-          <p
-            className="text-muted-foreground text-sm"
-            title={
-              WIN_RATE_EXCLUDED.size > 0
-                ? `การขายที่ได้กำไร ไม่รวม ${[...WIN_RATE_EXCLUDED].join(', ')} (ที่พักเงินสด)`
-                : 'การขายที่ได้กำไร'
-            }
-          >
-            ชนะ {stats.wins} จาก {stats.rated} ครั้ง
-          </p>
-        </StatCard>
+      <div className="grid items-start gap-6 lg:grid-cols-[26rem_minmax(0,1fr)]">
+        <SummarySlip
+          portfolio={portfolio}
+          loading={loading}
+          pending={pending}
+          totalPnl={totalPnl}
+          realized={analytics.realizedPnlThb}
+          unrealized={unrealized}
+          uncounted={uncounted}
+          stats={stats}
+          tradeCount={transactions.length}
+        />
+        <PayoffCard stats={stats} />
       </div>
-
-      <PayoffCard stats={stats} />
 
       <Card>
         <CardHeader>
@@ -157,54 +127,157 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 const TWR_HINT =
   '% คือผลตอบแทนแบบถ่วงน้ำหนักด้วยเวลา (TWR) เงินที่เติมหรือถอนจึงไม่นับเป็นการเติบโต ส่วน ฿ คือมูลค่าที่เปลี่ยนไปหักเงินที่เติมเข้ามา'
 
-function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pending: string }) {
+/** The summary as a bank-transfer-style slip, stamped with how it did against the S&P 500. */
+function SummarySlip({
+  portfolio,
+  loading,
+  pending,
+  totalPnl,
+  realized,
+  unrealized,
+  uncounted,
+  stats,
+  tradeCount,
+}: {
+  portfolio: Portfolio | null
+  loading: boolean
+  pending: string
+  totalPnl: number | null
+  realized: number
+  unrealized: number | null
+  uncounted: number | null
+  stats: TradeStats
+  tradeCount: number
+}) {
   const day = portfolio?.day
   const mood = !day || day.returnPct === 0 ? null : day.returnPct > 0 ? 'up' : 'down'
+  const score = portfolio ? scorecard(portfolio.timeline.pointsUsd, null) : null
 
   return (
-    <StatCard label="สินทรัพย์รวม" className="relative">
-      {/* Plays once when the day's change is known; click to replay. */}
-      {mood && (
-        <div className="absolute top-5 right-5">
-          <DayMood mood={mood} />
+    <div className="slip-shadow">
+      <section className="paper torn-both guilloche px-6 pt-8 pb-10" aria-label="สรุปพอร์ต">
+        <header className="flex items-start gap-3">
+          <span className="bg-delta-up flex size-9 shrink-0 items-center justify-center rounded-full text-white">
+            <Check className="size-5" strokeWidth={3} aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-lg leading-tight font-semibold">สรุปพอร์ตสำเร็จ</p>
+            <p className="text-muted-foreground text-xs">
+              {loading
+                ? 'กำลังดึงราคา…'
+                : portfolio?.pricesAsOf
+                  ? `ราคา ณ ${formatDateTime(portfolio.pricesAsOf)}`
+                  : portfolio
+                    ? `ราคาปิด ${formatDate(portfolio.timeline.latestSession)}`
+                    : 'ไม่มีราคาตลาด'}
+            </p>
+          </div>
+          {/* Plays once when the day's change is known; click to replay. */}
+          {mood && <DayMood mood={mood} />}
+        </header>
+
+        <div className="perf -mx-6 my-6" aria-hidden />
+
+        <div className="space-y-2">
+          <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
+          <p className="text-4xl font-semibold tracking-tight tabular-nums">
+            {portfolio ? formatThb(portfolio.valueThb) : pending}
+          </p>
+          <div className="space-y-1 pt-1 text-sm">
+            <Delta
+              label="1D"
+              change={day}
+              pending={!portfolio}
+              title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
+            />
+            <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
+            <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
+          </div>
         </div>
+
+        <div className="perf -mx-6 my-6" aria-hidden />
+
+        <dl className="space-y-2 text-sm">
+          <SlipRow label="กำไร/ขาดทุนรวม" strong value={totalPnl == null ? pending : formatSignedThb(totalPnl)} tone={totalPnl} />
+          <SlipRow label="รับรู้แล้ว" indent value={formatSignedThb(realized)} />
+          <SlipRow
+            label="ยังไม่รับรู้"
+            indent
+            value={unrealized == null ? pending : formatSignedThb(unrealized)}
+            title={
+              uncounted != null && Math.abs(uncounted) >= 1
+                ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${formatSignedThb(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
+                : undefined
+            }
+          />
+          <SlipRow
+            label="อัตราชนะ"
+            strong
+            value={`${formatPercent(stats.winRatePct, { decimals: 0 })} (ชนะ ${stats.wins} จาก ${stats.rated})`}
+            title={
+              WIN_RATE_EXCLUDED.size > 0
+                ? `การขายที่ได้กำไร ไม่รวม ${[...WIN_RATE_EXCLUDED].join(', ')} (ที่พักเงินสด)`
+                : 'การขายที่ได้กำไร'
+            }
+          />
+        </dl>
+
+        <div className="perf -mx-6 my-6" aria-hidden />
+
+        <footer className="flex items-center gap-4">
+          {/* Only stock trades come in by email, so cash held elsewhere in Dime! can't be counted. */}
+          <div className="text-muted-foreground flex-1 space-y-1 text-xs leading-relaxed">
+            <p>จาก {tradeCount} รายการในอีเมล</p>
+            <p>ไม่รวมเงินใน Dime! Save, บัญชี FCD และเงินสด USD</p>
+          </div>
+          {score && <Stamp leadPct={score.leadPct} />}
+        </footer>
+      </section>
+    </div>
+  )
+}
+
+function SlipRow({
+  label,
+  value,
+  title,
+  strong = false,
+  indent = false,
+  tone,
+}: {
+  label: string
+  value: string
+  title?: string
+  strong?: boolean
+  indent?: boolean
+  /** Colors the value by sign. */
+  tone?: number | null
+}) {
+  const color = tone == null || tone === 0 ? '' : tone > 0 ? 'text-delta-up' : 'text-delta-down'
+  return (
+    <div className={`flex justify-between gap-4 ${indent ? 'text-muted-foreground pl-3' : ''}`} title={title}>
+      <dt className={strong ? 'font-medium' : undefined}>{label}</dt>
+      <dd className={`tabular-nums ${strong ? 'text-base font-semibold' : 'text-foreground'} ${color}`}>{value}</dd>
+    </div>
+  )
+}
+
+/** Ahead of, behind or even with the S&P 500 over all time, as a rubber stamp. */
+function Stamp({ leadPct }: { leadPct: number }) {
+  const even = Math.abs(leadPct) < 0.05
+  const ahead = leadPct > 0
+  return (
+    <div
+      className={`stamp shrink-0 ${even ? 'text-muted-foreground' : ahead ? 'text-delta-up' : 'text-delta-down'}`}
+      title="ผลตอบแทนทั้งหมดของคุณ เทียบกับการซื้อขายแบบเดียวกันใน S&P 500"
+    >
+      <span className="text-[0.65rem] font-medium">ส่องพอร์ต Dime</span>
+      <span className="text-base leading-tight font-semibold">{even ? 'สูสี' : ahead ? 'ชนะ' : 'แพ้'} S&P 500</span>
+      {!even && (
+        <span className="text-xs font-semibold tabular-nums">
+          {ahead ? 'นำ' : 'ตาม'} {formatPercent(Math.abs(leadPct))}
+        </span>
       )}
-      <p className="text-3xl font-semibold tracking-tight">{portfolio ? formatThb(portfolio.valueThb) : pending}</p>
-      <div className="space-y-1 text-sm">
-        <Delta
-          label="1D"
-          change={day}
-          pending={!portfolio}
-          title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
-        />
-        <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
-        <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
-      </div>
-      {/* Only stock trades come in by email, so cash held elsewhere in Dime! can't be counted. */}
-      <p className="text-muted-foreground border-t pt-3 text-xs leading-relaxed">
-        นับเฉพาะหุ้นที่ซื้อขายผ่าน Dime! ยังไม่รวมเงินใน Dime! Save, บัญชี FCD และเงินสด USD
-        เพราะเว็บนี้อ่านได้แค่ใบยืนยันการซื้อขาย
-      </p>
-    </StatCard>
-  )
-}
-
-function StatCard({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
-  return (
-    <Card className={`gap-3 ${className ?? ''}`}>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">{children}</CardContent>
-    </Card>
-  )
-}
-
-function Row({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4" title={title}>
-      <dt>{label}</dt>
-      <dd className="text-foreground tabular-nums">{children}</dd>
     </div>
   )
 }

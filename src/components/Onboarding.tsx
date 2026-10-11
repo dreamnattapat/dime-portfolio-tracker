@@ -26,7 +26,7 @@ export function Stepper({ current }: { current: Step }) {
             <div className="flex items-center gap-2">
               <span
                 className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  done ? 'bg-brand text-white' : active ? 'border-brand text-brand border-2' : 'bg-muted text-muted-foreground'
+                  done ? 'bg-brand text-desk' : active ? 'border-brand text-brand border-2' : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {done ? <Check className="size-3.5" aria-label="เสร็จแล้ว" /> : step}
@@ -42,10 +42,12 @@ export function Stepper({ current }: { current: Step }) {
 
 function StepPanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="bg-card space-y-5 rounded-2xl border p-5 shadow-[0_1px_2px_rgb(20_33_61/0.06)] sm:p-7">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      {children}
-    </section>
+    <div className="slip-shadow">
+      <section className="paper torn-bottom space-y-5 rounded-t-sm p-5 pb-[calc(1.25rem+7px)] sm:p-7 sm:pb-[calc(1.75rem+7px)]">
+        <h2 className="text-xl font-semibold">{title}</h2>
+        {children}
+      </section>
+    </div>
   )
 }
 
@@ -224,7 +226,7 @@ function Node({ icon, label, highlight, muted }: { icon: ReactNode; label: strin
     <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
       <span
         className={`flex size-12 items-center justify-center rounded-2xl [&_svg]:size-6 ${
-          highlight ? 'bg-brand text-white' : muted ? 'bg-muted text-muted-foreground/60' : 'bg-brand-soft text-brand'
+          highlight ? 'bg-brand text-desk' : muted ? 'bg-muted text-muted-foreground/60' : 'bg-brand-soft text-brand'
         }`}
       >
         {icon}

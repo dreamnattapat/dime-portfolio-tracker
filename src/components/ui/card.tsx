@@ -1,16 +1,19 @@
 import * as React from "react"
 import { cn } from "cn"
 
+/** A sheet of paper on the desk: torn bottom edge, paper shadow. */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div
-      data-slot="card"
-      className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
-        className
-      )}
-      {...props}
-    />
+    <div className="slip-shadow">
+      <div
+        data-slot="card"
+        className={cn(
+          "paper torn-bottom flex flex-col gap-6 rounded-t-sm pt-6 pb-[calc(1.5rem+7px)] text-card-foreground",
+          className
+        )}
+        {...props}
+      />
+    </div>
   )
 }
 
