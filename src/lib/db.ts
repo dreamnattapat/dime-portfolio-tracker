@@ -53,6 +53,28 @@ export function setLastSyncedAt(iso: string | null): void {
   }
 }
 
+// The user's own USD/THB rate (e.g. copied from Dime!), if they set one. A
+// per-device convenience like the sync time, so localStorage it is.
+const USD_THB_KEY = 'usdThbOverride'
+
+export function getUsdThbOverride(): number | null {
+  try {
+    const value = Number(localStorage.getItem(USD_THB_KEY))
+    return value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function setUsdThbOverride(rate: number | null): void {
+  try {
+    if (rate) localStorage.setItem(USD_THB_KEY, String(rate))
+    else localStorage.removeItem(USD_THB_KEY)
+  } catch {
+    // Storage blocked: the rate applies until the page is reloaded.
+  }
+}
+
 export async function clearLocalData(): Promise<void> {
   await db.transaction('rw', db.transactions, db.processedMessages, async () => {
     await db.transactions.clear()

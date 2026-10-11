@@ -3,38 +3,48 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { AssetsTable } from '@/components/AssetsTable'
 import { PortfolioChart } from '@/components/PortfolioChart'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
 import { buildPortfolio, scorecard, type PeriodChange, type Portfolio } from '@/lib/benchmark'
 import { computeAssetPnl, sumAssets } from '@/lib/assets'
-import type { Transaction } from '@/lib/db'
+import { getUsdThbOverride, setUsdThbOverride, type Transaction } from '@/lib/db'
 import {
   formatDate,
   formatDateTime,
+  formatNumber,
   formatPercent,
   formatSignedThb,
   formatThb,
   localToday,
 } from '@/lib/format'
 
-/** The latest price lookup, and which trades it was for. */
-type Loaded = { flowsKey: string; portfolio: Portfolio | null; error: string | null }
+/** The latest price lookup, and which trades and USD/THB rate it was for. */
+type Loaded = { key: string; portfolio: Portfolio | null; error: string | null }
 
 export function Dashboard({ transactions }: { transactions: Transaction[] }) {
   const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
   const flowsKey = JSON.stringify(analytics.cashFlows)
+  const [usdThbOverride, setOverride] = useState(getUsdThbOverride)
+  const key = `${flowsKey}|${usdThbOverride ?? ''}`
   const [loaded, setLoaded] = useState<Loaded | null>(null)
+
+  function changeUsdThb(rate: number | null) {
+    setUsdThbOverride(rate)
+    setOverride(rate)
+  }
 
   useEffect(() => {
     let cancelled = false
     const done = (portfolio: Portfolio | null, error: string | null) => {
-      if (!cancelled) setLoaded({ flowsKey, portfolio, error })
+      if (!cancelled) setLoaded({ key, portfolio, error })
     }
     // Wait for a sync to settle rather than refetching after every email.
     const timer = setTimeout(() => {
-      buildPortfolio(JSON.parse(flowsKey), localToday())
+      buildPortfolio(JSON.parse(flowsKey), localToday(), usdThbOverride)
         .then((portfolio) => done(portfolio, null))
         .catch((e: Error) => done(null, e.message))
     }, 500)
@@ -42,9 +52,9 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [flowsKey])
+  }, [key, flowsKey, usdThbOverride])
 
-  const loading = loaded?.flowsKey !== flowsKey
+  const loading = loaded?.key !== key
   // While trades change, keep showing the previous figures until the new ones are ready.
   const portfolio = loaded?.portfolio ?? null
   const error = loading ? null : (loaded?.error ?? null)
@@ -72,6 +82,7 @@ export function Dashboard({ transactions }: { transactions: Transaction[] }) {
         uncounted={uncounted}
         stats={stats}
         tradeCount={transactions.length}
+        onChangeUsdThb={changeUsdThb}
       />
 
       <Card>
@@ -133,6 +144,7 @@ function SummaryCard({
   uncounted,
   stats,
   tradeCount,
+  onChangeUsdThb,
 }: {
   portfolio: Portfolio | null
   loading: boolean
@@ -143,6 +155,7 @@ function SummaryCard({
   uncounted: number | null
   stats: TradeStats
   tradeCount: number
+  onChangeUsdThb: (rate: number | null) => void
 }) {
   const day = portfolio?.day
   const score = portfolio ? scorecard(portfolio.timeline.pointsUsd, null) : null
@@ -226,8 +239,89 @@ function SummaryCard({
           </div>
           {score && <Stamp leadPct={score.leadPct} />}
         </footer>
+        {portfolio && (
+          <div className="text-muted-foreground mt-4 text-xs leading-relaxed">
+            <UsdThbSetting portfolio={portfolio} onChange={onChangeUsdThb} />
+          </div>
+        )}
       </section>
     </Card>
+  )
+}
+
+/**
+ * The USD/THB rate the values use, and a way to swap the market rate for
+ * Dime!'s own (which sits a little below it), so totals match the app.
+ */
+function UsdThbSetting({ portfolio, onChange }: { portfolio: Portfolio; onChange: (rate: number | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const rate = portfolio.timeline.usdThb
+  const parsed = Number(draft)
+  const valid = draft !== '' && parsed >= 20 && parsed <= 60
+
+  if (editing) {
+    return (
+      <form
+        className="space-y-2 pt-1"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!valid) return
+          onChange(parsed)
+          setEditing(false)
+        }}
+      >
+        <label className="block space-y-1">
+          <span className="text-foreground font-medium">เรทของ Dime! (บาทต่อ 1 ดอลลาร์)</span>
+          <Input
+            className="h-9 w-32 text-sm tabular-nums"
+            inputMode="decimal"
+            autoFocus
+            placeholder={formatNumber(rate, 2)}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
+          />
+        </label>
+        <p>หาได้จากแอป Dime!: เอามูลค่าเป็นบาทของหุ้นตัวไหนก็ได้ หารด้วยมูลค่าเป็น USD เช่น 33,420 ÷ 1,000 = 33.42</p>
+        <div className="flex gap-2">
+          <Button type="submit" size="sm" className="bg-brand hover:bg-brand/90 rounded-full text-white" disabled={!valid}>
+            ใช้เรทนี้
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
+            ยกเลิก
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <p>
+      เรท {formatNumber(rate, 2)} บาท/ดอลลาร์{' '}
+      {portfolio.usdThbOverridden ? `(เรทที่คุณตั้ง ราคาตลาด ${formatNumber(portfolio.marketUsdThb, 2)})` : '(ราคาตลาด)'}{' '}
+      <button
+        type="button"
+        className="text-brand font-medium underline-offset-2 hover:underline"
+        onClick={() => {
+          setDraft(portfolio.usdThbOverridden ? String(rate) : '')
+          setEditing(true)
+        }}
+      >
+        {portfolio.usdThbOverridden ? 'แก้เรท' : 'ใช้เรทของ Dime!'}
+      </button>
+      {portfolio.usdThbOverridden && (
+        <>
+          {' · '}
+          <button
+            type="button"
+            className="text-brand font-medium underline-offset-2 hover:underline"
+            onClick={() => onChange(null)}
+          >
+            ใช้ราคาตลาด
+          </button>
+        </>
+      )}
+    </p>
   )
 }
 

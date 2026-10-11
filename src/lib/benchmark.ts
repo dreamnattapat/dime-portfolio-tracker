@@ -247,6 +247,10 @@ export function scorecard(points: TimelinePoint[], months: number | null): Score
 
 export type Portfolio = {
   timeline: Timeline
+  /** The market USD/THB rate; `timeline.usdThb` is the rate actually used. */
+  marketUsdThb: number
+  /** The user set their own USD/THB rate (e.g. Dime!'s) in place of the market one. */
+  usdThbOverridden: boolean
   /** When the newest stock price was quoted, ms since epoch. */
   pricesAsOf: number | null
   valueThb: number
@@ -257,13 +261,19 @@ export type Portfolio = {
   yoy: PeriodChange | null
 }
 
-export function summarize(timeline: Timeline, pricesAsOf: number | null = null): Portfolio {
+export function summarize(
+  timeline: Timeline,
+  pricesAsOf: number | null = null,
+  marketUsdThb: number = timeline.usdThb,
+): Portfolio {
   const last = timeline.points.at(-1)
   const value = last?.value ?? 0
   const invested = last?.invested ?? 0
   return {
     timeline,
     pricesAsOf,
+    marketUsdThb,
+    usdThbOverridden: marketUsdThb !== timeline.usdThb,
     valueThb: value,
     totalGainThb: value - invested,
     day: dayChange(timeline.points, timeline.latestSession),
@@ -272,15 +282,24 @@ export function summarize(timeline: Timeline, pricesAsOf: number | null = null):
   }
 }
 
-/** Fetches SPY, USD/THB and every traded ticker's prices, then values the portfolio. */
-export async function buildPortfolio(flows: CashFlow[], today: string): Promise<Portfolio> {
+/**
+ * Fetches SPY, USD/THB and every traded ticker's prices, then values the
+ * portfolio. With `usdThbOverride` (say, Dime!'s rate) the whole USD/THB
+ * history is scaled to end at that rate, so day-to-day changes aren't
+ * distorted by a one-day jump between the two rates.
+ */
+export async function buildPortfolio(
+  flows: CashFlow[],
+  today: string,
+  usdThbOverride: number | null = null,
+): Promise<Portfolio> {
   if (!flows.length) throw new Error('ยังไม่มีรายการซื้อขาย')
   const start = flows[0].date
   // A trade can carry tomorrow's date (Thai time is ahead of New York).
   const end = flows.at(-1)!.date > today ? flows.at(-1)!.date : today
   const securities = [...new Set(flows.map((f) => f.security))]
 
-  const [spy, fx, ...results] = await Promise.all([
+  const [spy, marketFx, ...results] = await Promise.all([
     fetchPrices(BENCHMARK_SYMBOL, start, end),
     fetchPrices(FX_SYMBOL, start, end),
     // A ticker without history (e.g. delisted) falls back to its last trade price.
@@ -290,5 +309,6 @@ export async function buildPortfolio(flows: CashFlow[], today: string): Promise<
   // Stocks only: USD/THB trades around the clock, so it's always newer.
   const quoteTimes = [spy, ...results].map((p) => p?.latestAt ?? 0)
   const pricesAsOf = Math.max(...quoteTimes) || null
-  return summarize(computeTimeline(flows, spy, fx, prices, end), pricesAsOf)
+  const fx = usdThbOverride ? marketFx.scaled(usdThbOverride / marketFx.latest, usdThbOverride) : marketFx
+  return summarize(computeTimeline(flows, spy, fx, prices, end), pricesAsOf, marketFx.latest)
 }

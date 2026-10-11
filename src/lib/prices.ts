@@ -51,6 +51,21 @@ export class PriceSeries {
   }
 
   /**
+   * The same series with every close multiplied by `factor`, ending at
+   * `latest`. Used to value at a broker's own exchange rate, assuming its gap
+   * from the market rate stays about the same over time.
+   */
+  scaled(factor: number, latest: number): PriceSeries {
+    return new PriceSeries(
+      this.symbol,
+      this.dates.map((date, i) => [date, this.closes[i] * factor]),
+      latest,
+      this.splits,
+      this.latestAt,
+    )
+  }
+
+  /**
    * Closes are split-adjusted back through history, so one share actually
    * held on `day` is this many shares in today's terms (product of later splits).
    */
