@@ -1,25 +1,33 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Dashboard } from '@/components/Dashboard'
+import { BirthdateStep, ConnectStep, DataPath, Stepper, SyncStatus } from '@/components/Onboarding'
 import { TransactionsTable } from '@/components/TransactionsTable'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Progress } from '@/components/ui/progress'
+import { parseBirthdate } from '@/lib/birthdate'
 import { clearLocalData, db, getLastSyncedAt, setLastSyncedAt } from '@/lib/db'
+import { formatDateTime } from '@/lib/format'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
+import { WrongPasswordError } from '@/lib/pdf'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
 
 export default function App() {
   // The birthdate lives only in this component's memory: never stored, never
   // sent anywhere. Reloading the page forgets it.
-  const [pdfPassword, setPdfPassword] = useState('')
+  const [birthdateDigits, setBirthdateDigits] = useState('')
   const [connected, setConnected] = useState(hasValidToken())
+  const [connecting, setConnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [wrongBirthdate, setWrongBirthdate] = useState(false)
+  const [noEmailsFound, setNoEmailsFound] = useState(false)
+  // Returning users land on their dashboard; "sync" takes them back through the steps.
+  const [setupOpen, setSetupOpen] = useState(false)
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const [syncedAt, setSyncedAt] = useState(getLastSyncedAt)
@@ -33,29 +41,59 @@ export default function App() {
   }, [])
   const lastSynced = syncedAt ?? lastEmailReadAt ?? null
   const unparsedCount = transactions?.filter((tx) => tx.parseStatus === 'unparsed').length ?? 0
+  const hasData = !!transactions && transactions.length > 0
 
   useEffect(() => {
     if (clientId) loadGoogleIdentity().catch((e: Error) => setError(e.message))
   }, [])
 
-  const passwordValid = /^\d{8}$/.test(pdfPassword)
+  async function connect() {
+    setConnecting(true)
+    setError(null)
+    try {
+      await getAccessToken()
+      setConnected(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setConnecting(false)
+    }
+  }
 
   async function sync() {
+    const birthdate = parseBirthdate(birthdateDigits)
+    if (!birthdate) {
+      setSetupOpen(true)
+      return
+    }
     setSyncing(true)
     setError(null)
+    setWrongBirthdate(false)
+    setNoEmailsFound(false)
     setProgress(null)
     try {
       const accessToken = await getAccessToken()
       setConnected(true)
-      await syncFromGmail(accessToken, pdfPassword, setProgress)
+      await syncFromGmail(accessToken, birthdate.password, setProgress)
       const now = new Date().toISOString()
       setLastSyncedAt(now)
       setSyncedAt(now)
+      if ((await db.transactions.count()) > 0) setSetupOpen(false)
+      else setNoEmailsFound(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (e instanceof WrongPasswordError) setWrongBirthdate(true)
+      else setError(e instanceof Error ? e.message : String(e))
+      setSetupOpen(true)
     } finally {
       setSyncing(false)
     }
+  }
+
+  /** From the dashboard: sync straight away if Gmail and the birthdate are ready, else walk the steps. */
+  function syncFromDashboard() {
+    setProgress(null)
+    if (connected && hasValidToken() && parseBirthdate(birthdateDigits)) void sync()
+    else setSetupOpen(true)
   }
 
   async function handleDisconnect() {
@@ -68,153 +106,131 @@ export default function App() {
     await clearLocalData()
     setSyncedAt(null)
     setProgress(null)
+    setSetupOpen(false)
   }
 
-  return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Dime! Portfolio Tracker</h1>
-        <p className="text-muted-foreground max-w-2xl">
-          รายการซื้อขาย Dime! จาก Gmail ของคุณ วิเคราะห์ในเบราว์เซอร์นี้ ไม่มีข้อมูลถูกส่งไปที่ใดนอกจาก Google
-        </p>
-      </header>
+  // Wait for the local database before choosing a view, so returning users don't see the steps flash.
+  if (transactions === undefined) return null
 
+  const showSetup = setupOpen || !hasData
+  const step = connected ? 2 : 1
+
+  return (
+    <main className="mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-12 sm:pt-12">
       {!clientId && (
         <Alert variant="destructive">
           <AlertTitle>ยังไม่ได้ตั้งค่าการเข้าสู่ระบบด้วย Google</AlertTitle>
           <AlertDescription>
             <p>
-              ตั้งค่า <code>VITE_GOOGLE_CLIENT_ID</code> ใน <code>.env.local</code> แล้วรีสตาร์ทเซิร์ฟเวอร์ ดูรายละเอียดใน
-              README
+              ตั้งค่า <code>VITE_GOOGLE_CLIENT_ID</code> ใน <code>.env.local</code> แล้วรีสตาร์ทเซิร์ฟเวอร์
+              ดูรายละเอียดใน README
             </p>
           </AlertDescription>
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>ซิงก์จาก Gmail</CardTitle>
-          <CardDescription>ใช้วันเกิดของคุณเพื่อเปิดไฟล์ PDF ของ Dime! และจะไม่ถูกบันทึกไว้</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void sync()
-            }}
-          >
-            <label className="flex-1 space-y-1.5">
-              <span className="text-sm font-medium">วันเกิด ปี ค.ศ. (DDMMYYYY)</span>
-              <Input
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={8}
-                placeholder="เช่น 05031995"
-                value={pdfPassword}
-                onChange={(e) => setPdfPassword(e.target.value.replace(/\D/g, ''))}
-              />
-            </label>
-            <Button type="submit" disabled={!clientId || !passwordValid || syncing}>
-              {syncing ? 'กำลังซิงก์…' : connected ? 'ซิงก์อีเมลใหม่' : 'เชื่อมต่อ Gmail และซิงก์'}
+      {showSetup ? (
+        <div className="mx-auto max-w-xl space-y-8">
+          {hasData ? (
+            <Button variant="ghost" size="sm" className="-ml-3" onClick={() => setSetupOpen(false)}>
+              <ArrowLeft aria-hidden />
+              กลับไปดูพอร์ต
             </Button>
-          </form>
+          ) : (
+            <header className="space-y-3">
+              <p className="text-brand text-sm font-semibold">Dime! Portfolio Tracker</p>
+              <h1 className="text-[1.75rem] leading-tight font-semibold sm:text-4xl">ดูพอร์ต Dime! ของคุณแบบเข้าใจง่าย</h1>
+              <p className="text-muted-foreground text-base leading-relaxed sm:text-lg">
+                กำไรขาดทุนทั้งพอร์ต อัตราชนะ และผลตอบแทนเทียบกับ S&P 500 คำนวณจากอีเมลยืนยันการซื้อขายใน Gmail
+                ของคุณ ใช้ฟรี ไม่ต้องสมัครสมาชิก
+              </p>
+            </header>
+          )}
 
-          {!connected && (
-            <details className="text-muted-foreground text-sm">
-              <summary className="cursor-pointer">Google แจ้งว่า "Google ยังไม่ได้ยืนยันแอปนี้" ใช่ไหม?</summary>
-              <div className="mt-2 space-y-2">
-                <p>
-                  เป็นเรื่องปกติ เพราะแอปนี้ยังอยู่ระหว่างการตรวจสอบของ Google หากต้องการดำเนินการต่อ ให้คลิก{' '}
-                  <strong>ขั้นสูง (Advanced)</strong> แล้วคลิก <strong>ไปที่ … (ไม่ปลอดภัย)</strong> และอนุญาตให้อ่าน Gmail
-                  ของคุณ
-                </p>
-                <p>
-                  สิทธิ์นี้เป็นแบบอ่านอย่างเดียวและอยู่ในเบราว์เซอร์นี้เท่านั้น อีเมลถูกดึงจาก Google มายังหน้านี้โดยตรง
-                  และการตั้งค่าความปลอดภัยของเว็บไซต์ป้องกันไม่ให้หน้านี้ส่งข้อมูลไปที่อื่น คุณตรวจสอบ{' '}
-                  <a
-                    className="underline underline-offset-2"
-                    href="https://github.com/dreamnattapat/dime-portfolio-tracker"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    ซอร์สโค้ด
-                  </a>{' '}
-                  ได้ และยกเลิกสิทธิ์ได้ทุกเมื่อจาก{' '}
-                  <a
-                    className="underline underline-offset-2"
-                    href="https://myaccount.google.com/connections"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    บัญชี Google
-                  </a>{' '}
-                  ของคุณ
-                </p>
-              </div>
-            </details>
+          <Stepper current={step} />
+
+          {step === 1 ? (
+            <ConnectStep onConnect={() => void connect()} connecting={connecting} disabled={!clientId} />
+          ) : (
+            <BirthdateStep
+              digits={birthdateDigits}
+              onDigitsChange={(digits) => {
+                setBirthdateDigits(digits)
+                setWrongBirthdate(false)
+              }}
+              onSubmit={() => void sync()}
+              syncing={syncing}
+              progress={progress}
+              wrongBirthdate={wrongBirthdate}
+            />
+          )}
+
+          {noEmailsFound && (
+            <Alert>
+              <AlertTitle>ไม่พบอีเมลจาก Dime! ใน Gmail นี้</AlertTitle>
+              <AlertDescription>
+                ตรวจสอบว่าเชื่อมต่อบัญชี Gmail ที่ใช้รับใบยืนยันการซื้อขายจาก Dime!{' '}
+                <button className="underline underline-offset-2" onClick={() => void handleDisconnect()}>
+                  เปลี่ยนบัญชี
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>ทำต่อไม่ได้</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {connected && (
             <p className="text-muted-foreground text-sm">
               เชื่อมต่อ Gmail แล้ว (อ่านอย่างเดียว){' '}
-              <button className="underline underline-offset-2" onClick={handleDisconnect}>
+              <button className="underline underline-offset-2" onClick={() => void handleDisconnect()}>
                 ยกเลิกการเชื่อมต่อ
               </button>
             </p>
           )}
 
-          {progress && (
-            <div className="space-y-1.5">
-              <Progress value={progress.total ? (progress.done / progress.total) * 100 : 100} />
-              <p className="text-muted-foreground text-sm">
-                {progress.total === 0
-                  ? 'ไม่มีอีเมล Dime! ใหม่'
-                  : `อ่านอีเมลใหม่แล้ว ${progress.done} จาก ${progress.total} ฉบับ · เพิ่ม ${progress.added} รายการ` +
-                    (progress.failed ? ` · ล้มเหลว ${progress.failed} ฉบับ (จะลองใหม่ในการซิงก์ครั้งถัดไป)` : '')}
-              </p>
-              {progress.firstError && (
-                <p className="text-destructive text-sm">ข้อผิดพลาดแรก: {progress.firstError}</p>
-              )}
+          <div className="border-t pt-8">
+            <DataPath />
+          </div>
+        </div>
+      ) : (
+        <>
+          <header className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-brand text-sm font-semibold">Dime! Portfolio Tracker</p>
+              <h1 className="text-2xl font-semibold sm:text-3xl">พอร์ตของคุณ</h1>
+              {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
             </div>
-          )}
+            <Button variant="outline" onClick={syncFromDashboard} disabled={syncing}>
+              <RefreshCw className={syncing ? 'animate-spin' : undefined} aria-hidden />
+              {syncing ? 'กำลังดึงอีเมลใหม่…' : 'ดึงอีเมลใหม่'}
+            </Button>
+          </header>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>การซิงก์หยุดลง</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+          {syncing && progress && <SyncStatus progress={progress} />}
 
-      {transactions && transactions.length > unparsedCount && (
-        <Dashboard transactions={transactions} lastSynced={lastSynced} />
+          {transactions.length > unparsedCount && <Dashboard transactions={transactions} lastSynced={null} />}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>รายการซื้อขาย</CardTitle>
+              <CardDescription>
+                {`${transactions.length - unparsedCount} รายการ` +
+                  (unparsedCount ? ` · อ่าน PDF ไม่ได้ ${unparsedCount} ไฟล์` : '')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TransactionsTable transactions={transactions} />
+            </CardContent>
+          </Card>
+        </>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>รายการซื้อขาย</CardTitle>
-          <CardDescription>
-            {transactions === undefined
-              ? 'กำลังโหลด…'
-              : `${transactions.length - unparsedCount} รายการ` +
-                (unparsedCount ? ` · อ่าน PDF ไม่ได้ ${unparsedCount} ไฟล์` : '')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {transactions?.length ? (
-            <TransactionsTable transactions={transactions} />
-          ) : (
-            transactions && (
-              <p className="text-muted-foreground text-sm">ยังไม่มีข้อมูล กดซิงก์เพื่อดึงรายการซื้อขาย Dime! ของคุณ</p>
-            )
-          )}
-        </CardContent>
-      </Card>
-
-      <footer className="text-muted-foreground space-y-1 text-xs">
+      <footer className={`text-muted-foreground space-y-1 text-xs ${showSetup ? 'mx-auto max-w-xl' : ''}`}>
         <p>
           <a className="underline underline-offset-2" href="/privacy">
             นโยบายความเป็นส่วนตัว
@@ -228,14 +244,14 @@ export default function App() {
           >
             ซอร์สโค้ด
           </a>
-          {transactions?.length ? (
+          {hasData && (
             <>
               {' · '}
-              <button className="underline underline-offset-2" onClick={handleClear}>
+              <button className="underline underline-offset-2" onClick={() => void handleClear()}>
                 ลบข้อมูลในเครื่อง
               </button>
             </>
-          ) : null}
+          )}
         </p>
         <p>เว็บไซต์นี้ไม่มีส่วนเกี่ยวข้องกับ Dime! หรือ KKP Dime Securities Company Limited</p>
       </footer>

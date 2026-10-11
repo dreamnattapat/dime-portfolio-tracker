@@ -5,6 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --font-sans: "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+    --color-brand: var(--brand);
+    --color-brand-soft: var(--brand-soft);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -52,7 +55,11 @@
 
 :root {
     --radius: 0.625rem;
-    --background: oklch(1 0 0);
+    /* A cool mist page behind white cards; the brand blue is the "you" line's
+       hue, darkened to meet text contrast on white. */
+    --background: #f4f6f9;
+    --brand: #1d5fb8;
+    --brand-soft: #e7eef9;
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
@@ -96,6 +103,8 @@
 
 .dark {
     --background: oklch(0.145 0 0);
+    --brand: #3987e5;
+    --brand-soft: #1b2a40;
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(0.985 0 0);
@@ -225,4 +234,19 @@
     .mood-tile * {
         animation: none !important;
     }
+}
+
+/* Onboarding: the Gmail → device line in the "where your data goes" diagram.
+   Dots travel toward the device; reduced motion shows them still. */
+.data-flow {
+    background-image: radial-gradient(circle, var(--brand) 1.5px, transparent 2px);
+    background-size: 8px 2px;
+    background-repeat: repeat-x;
+    animation: data-flow 0.8s linear infinite;
+}
+@keyframes data-flow {
+    to { background-position-x: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .data-flow { animation: none; }
 }

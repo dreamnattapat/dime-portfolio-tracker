@@ -100,7 +100,11 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
       crosshair: { mode: CrosshairMode.Magnet, horzLine: { visible: false, labelVisible: false } },
-      localization: { priceFormatter: (value: number) => formatCompactMoney(value, '$') },
+      localization: {
+        // Gregorian years on the axis, as everywhere else on the page.
+        locale: 'th-TH-u-ca-gregory',
+        priceFormatter: (value: number) => formatCompactMoney(value, '$'),
+      },
       handleScroll: false,
       handleScale: false,
     })
