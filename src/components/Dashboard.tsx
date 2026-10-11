@@ -61,29 +61,29 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
   return (
     <div className="space-y-6">
       <p className="text-muted-foreground text-xs">
-        {lastSynced && <>Synced {formatDateTime(lastSynced)}</>}
+        {lastSynced && <>ซิงก์เมื่อ {formatDateTime(lastSynced)}</>}
         {lastSynced && ' · '}
-        {loading ? 'Fetching prices…' : portfolio?.pricesAsOf ? `Prices ${formatDateTime(portfolio.pricesAsOf)}` : null}
+        {loading ? 'กำลังดึงราคา…' : portfolio?.pricesAsOf ? `ราคา ณ ${formatDateTime(portfolio.pricesAsOf)}` : null}
       </p>
 
       {error && (
-        <p className="text-muted-foreground text-sm">Prices unavailable ({error}). Showing realized P&L only.</p>
+        <p className="text-muted-foreground text-sm">ไม่มีข้อมูลราคา ({error}) จึงแสดงเฉพาะกำไร/ขาดทุนที่รับรู้แล้ว</p>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <ValueCard portfolio={portfolio} pending={pending} />
 
-        <StatCard label="Total P&L">
+        <StatCard label="กำไร/ขาดทุนรวม">
           <p className="text-3xl font-semibold tracking-tight">
             {totalPnl == null ? pending : formatSignedThb(totalPnl)}
           </p>
           <dl className="text-muted-foreground space-y-1 text-sm">
-            <Row label="Realized">{formatSignedThb(analytics.realizedPnlThb)}</Row>
+            <Row label="รับรู้แล้ว">{formatSignedThb(analytics.realizedPnlThb)}</Row>
             <Row
-              label="Unrealized"
+              label="ยังไม่รับรู้"
               title={
                 uncounted != null && Math.abs(uncounted) >= 1
-                  ? `As in the Dime! app: price vs average cost. Leaves out ${formatSignedThb(uncounted)} from the USD/THB move and buy fees.`
+                  ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${formatSignedThb(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
                   : undefined
               }
             >
@@ -92,17 +92,17 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
           </dl>
         </StatCard>
 
-        <StatCard label="Win rate">
+        <StatCard label="อัตราชนะ">
           <p className="text-3xl font-semibold tracking-tight">{formatPercent(stats.winRatePct, { decimals: 0 })}</p>
           <p
             className="text-muted-foreground text-sm"
             title={
               WIN_RATE_EXCLUDED.size > 0
-                ? `Sells at a profit. Excludes ${[...WIN_RATE_EXCLUDED].join(', ')} (cash parking).`
-                : 'Sells at a profit.'
+                ? `การขายที่ได้กำไร ไม่รวม ${[...WIN_RATE_EXCLUDED].join(', ')} (ที่พักเงินสด)`
+                : 'การขายที่ได้กำไร'
             }
           >
-            {stats.wins} of {stats.rated} trades
+            ชนะ {stats.wins} จาก {stats.rated} ครั้ง
           </p>
         </StatCard>
       </div>
@@ -111,9 +111,9 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 
       <Card>
         <CardHeader>
-          <CardTitle>Your portfolio vs the S&P 500</CardTitle>
-          <CardDescription title="Same amount, same day, in SPY. Dividends and the S&P 500 side's fees are left out.">
-            Your trades vs the same trades in the S&P 500, in US dollars.
+          <CardTitle>พอร์ตของคุณเทียบกับ S&P 500</CardTitle>
+          <CardDescription title="ลงเงินจำนวนเดียวกัน ในวันเดียวกัน ใน SPY ไม่รวมเงินปันผลและค่าธรรมเนียมฝั่ง S&P 500">
+            การซื้อขายของคุณเทียบกับการซื้อขายแบบเดียวกันใน S&P 500 เป็นดอลลาร์สหรัฐ
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -122,13 +122,13 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
               <PortfolioChart points={portfolio.timeline.pointsUsd} />
               {portfolio.timeline.approximated.length > 0 && (
                 <p className="text-muted-foreground mt-3 text-xs">
-                  No price for {portfolio.timeline.approximated.join(', ')}; using your last trade price.
+                  ไม่มีราคาของ {portfolio.timeline.approximated.join(', ')} จึงใช้ราคาที่คุณซื้อขายล่าสุดแทน
                 </p>
               )}
             </>
           ) : (
             <p className="text-muted-foreground text-sm">
-              {loading ? 'Fetching market prices…' : 'Chart unavailable without market prices.'}
+              {loading ? 'กำลังดึงราคาตลาด…' : 'แสดงกราฟไม่ได้เพราะไม่มีราคาตลาด'}
             </p>
           )}
         </CardContent>
@@ -136,8 +136,8 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 
       <Card>
         <CardHeader>
-          <CardTitle>P&L by asset</CardTitle>
-          <CardDescription>Unrealized matches the Dime! app.</CardDescription>
+          <CardTitle>กำไร/ขาดทุนรายสินทรัพย์</CardTitle>
+          <CardDescription>ยอดที่ยังไม่รับรู้ตรงกับในแอป Dime!</CardDescription>
         </CardHeader>
         <CardContent>
           <AssetsTable assets={assets} loading={loading} />
@@ -146,8 +146,8 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 
       {analytics.incompleteBasisTrades > 0 && (
         <p className="text-muted-foreground text-xs">
-          {analytics.incompleteBasisTrades} sell(s) have no matching buy in your emails, so the whole sale counts as
-          profit.
+          มีรายการขาย {analytics.incompleteBasisTrades} รายการที่ไม่พบรายการซื้อในอีเมลของคุณ
+          จึงนับยอดขายทั้งหมดเป็นกำไร
         </p>
       )}
     </div>
@@ -155,14 +155,14 @@ export function Dashboard({ transactions, lastSynced }: { transactions: Transact
 }
 
 const TWR_HINT =
-  "% is the time-weighted return, so money you add or withdraw doesn't count as growth. ฿ is the change in value minus money added."
+  '% คือผลตอบแทนแบบถ่วงน้ำหนักด้วยเวลา (TWR) เงินที่เติมหรือถอนจึงไม่นับเป็นการเติบโต ส่วน ฿ คือมูลค่าที่เปลี่ยนไปหักเงินที่เติมเข้ามา'
 
 function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pending: string }) {
   const day = portfolio?.day
   const mood = !day || day.returnPct === 0 ? null : day.returnPct > 0 ? 'up' : 'down'
 
   return (
-    <StatCard label="Total asset" className="relative">
+    <StatCard label="สินทรัพย์รวม" className="relative">
       {/* Plays once when the day's change is known; click to replay. */}
       {mood && (
         <div className="absolute top-5 right-5">
@@ -175,7 +175,7 @@ function ValueCard({ portfolio, pending }: { portfolio: Portfolio | null; pendin
           label="1D"
           change={day}
           pending={!portfolio}
-          title={`The latest US trading day${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} vs the close before it, including the USD/THB move. ${TWR_HINT}`}
+          title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า รวมการเปลี่ยนแปลงของค่าเงิน USD/THB ${TWR_HINT}`}
         />
         <Delta label="MoM" change={portfolio?.mom} pending={!portfolio} title={TWR_HINT} />
         <Delta label="YoY" change={portfolio?.yoy} pending={!portfolio} title={TWR_HINT} />
@@ -219,7 +219,7 @@ function Delta({
   if (!change) {
     return (
       <p className="text-muted-foreground">
-        {label} {pending ? '…' : '— not enough history'}
+        {label} {pending ? '…' : '— ข้อมูลย้อนหลังไม่พอ'}
       </p>
     )
   }
@@ -246,8 +246,8 @@ function PayoffCard({ stats }: { stats: TradeStats }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Does the win rate pay off?</CardTitle>
-        <CardDescription>The win rate you need to break even, given your average win and loss.</CardDescription>
+        <CardTitle>อัตราชนะนี้คุ้มไหม?</CardTitle>
+        <CardDescription>อัตราชนะที่ต้องมีเพื่อให้คุ้มทุน เมื่อดูจากกำไรเฉลี่ยและขาดทุนเฉลี่ยของคุณ</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {comparable ? (
@@ -255,27 +255,27 @@ function PayoffCard({ stats }: { stats: TradeStats }) {
         ) : (
           <p className="text-muted-foreground text-sm">
             {stats.rated === 0
-              ? 'No closed trades yet.'
+              ? 'ยังไม่มีการขายปิดสถานะ'
               : stats.losses === 0
-                ? 'No losing trades yet.'
-                : 'No winning trades yet.'}
+                ? 'ยังไม่มีเทรดที่ขาดทุน'
+                : 'ยังไม่มีเทรดที่ได้กำไร'}
           </p>
         )}
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Metric label="Average win" value={formatThb(avgWinThb)} />
-          <Metric label="Average loss" value={avgLossThb == null ? '—' : formatThb(-avgLossThb)} />
+          <Metric label="กำไรเฉลี่ย" value={formatThb(avgWinThb)} />
+          <Metric label="ขาดทุนเฉลี่ย" value={avgLossThb == null ? '—' : formatThb(-avgLossThb)} />
           <Metric
-            label="Payoff ratio"
+            label="อัตราส่วนกำไรต่อขาดทุน"
             value={payoffRatio == null ? '—' : `${formatNumber(payoffRatio)}×`}
-            hint="Average win ÷ average loss"
+            hint="กำไรเฉลี่ย ÷ ขาดทุนเฉลี่ย"
           />
           <Metric
-            label="Expectancy"
+            label="ค่าคาดหวังต่อเทรด"
             value={formatSignedThb(stats.expectancyThb)}
             hint={
               stats.profitFactor == null
-                ? 'Average P&L per trade'
-                : `Average P&L per trade · profit factor ${formatNumber(stats.profitFactor)}`
+                ? 'กำไร/ขาดทุนเฉลี่ยต่อเทรด'
+                : `กำไร/ขาดทุนเฉลี่ยต่อเทรด · Profit factor ${formatNumber(stats.profitFactor)}`
             }
           />
         </dl>
@@ -308,7 +308,7 @@ function WinRateMeter({
       <div
         className="bg-muted relative h-2.5 rounded-full"
         role="img"
-        aria-label={`Win rate ${Math.round(winRatePct)}%, break-even ${Math.round(breakEvenPct)}%`}
+        aria-label={`อัตราชนะ ${Math.round(winRatePct)}%, จุดคุ้มทุน ${Math.round(breakEvenPct)}%`}
       >
         <div
           className={`h-full rounded-full ${ahead ? 'bg-delta-up' : 'bg-delta-down'}`}
@@ -322,11 +322,11 @@ function WinRateMeter({
       <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
         <span className="flex items-center gap-1.5">
           <span className={`size-2.5 rounded-full ${ahead ? 'bg-delta-up' : 'bg-delta-down'}`} aria-hidden />
-          Your win rate {formatPercent(winRatePct, { decimals: 0 })}
+          อัตราชนะของคุณ {formatPercent(winRatePct, { decimals: 0 })}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="bg-foreground h-3 w-0.5 rounded-full" aria-hidden />
-          Break-even {formatPercent(breakEvenPct, { decimals: 0 })}
+          จุดคุ้มทุน {formatPercent(breakEvenPct, { decimals: 0 })}
         </span>
       </div>
     </div>

@@ -14,7 +14,7 @@ import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 /** Thrown when the birthdate doesn't open the PDF. */
 export class WrongPasswordError extends Error {
   constructor() {
-    super("The birthdate didn't open the PDF. Check it's DDMMYYYY (e.g. 05031995).")
+    super('วันเกิดเปิดไฟล์ PDF ไม่ได้ ตรวจสอบว่าเป็นรูปแบบ DDMMYYYY ปี ค.ศ. (เช่น 05031995)')
     this.name = 'WrongPasswordError'
   }
 }

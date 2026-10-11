@@ -64,7 +64,7 @@ export default function App() {
   }
 
   async function handleClear() {
-    if (!confirm('Delete all transactions stored in this browser? You can re-sync them from Gmail any time.')) return
+    if (!confirm('ลบรายการซื้อขายทั้งหมดที่เก็บไว้ในเบราว์เซอร์นี้? คุณซิงก์จาก Gmail ใหม่ได้ทุกเมื่อ')) return
     await clearLocalData()
     setSyncedAt(null)
     setProgress(null)
@@ -75,17 +75,17 @@ export default function App() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Dime! Portfolio Tracker</h1>
         <p className="text-muted-foreground max-w-2xl">
-          Your Dime! trades from Gmail, analysed in this browser. Nothing is sent anywhere except Google.
+          รายการซื้อขาย Dime! จาก Gmail ของคุณ วิเคราะห์ในเบราว์เซอร์นี้ ไม่มีข้อมูลถูกส่งไปที่ใดนอกจาก Google
         </p>
       </header>
 
       {!clientId && (
         <Alert variant="destructive">
-          <AlertTitle>Google sign-in isn't configured</AlertTitle>
+          <AlertTitle>ยังไม่ได้ตั้งค่าการเข้าสู่ระบบด้วย Google</AlertTitle>
           <AlertDescription>
             <p>
-              Set <code>VITE_GOOGLE_CLIENT_ID</code> in <code>.env.local</code> and restart the dev server. See the
-              README.
+              ตั้งค่า <code>VITE_GOOGLE_CLIENT_ID</code> ใน <code>.env.local</code> แล้วรีสตาร์ทเซิร์ฟเวอร์ ดูรายละเอียดใน
+              README
             </p>
           </AlertDescription>
         </Alert>
@@ -93,8 +93,8 @@ export default function App() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Sync from Gmail</CardTitle>
-          <CardDescription>Your birthdate unlocks Dime!'s PDFs. It's never saved.</CardDescription>
+          <CardTitle>ซิงก์จาก Gmail</CardTitle>
+          <CardDescription>ใช้วันเกิดของคุณเพื่อเปิดไฟล์ PDF ของ Dime! และจะไม่ถูกบันทึกไว้</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form
@@ -105,52 +105,52 @@ export default function App() {
             }}
           >
             <label className="flex-1 space-y-1.5">
-              <span className="text-sm font-medium">Birthdate (DDMMYYYY)</span>
+              <span className="text-sm font-medium">วันเกิด ปี ค.ศ. (DDMMYYYY)</span>
               <Input
                 type="password"
                 inputMode="numeric"
                 autoComplete="off"
                 maxLength={8}
-                placeholder="e.g. 05031995"
+                placeholder="เช่น 05031995"
                 value={pdfPassword}
                 onChange={(e) => setPdfPassword(e.target.value.replace(/\D/g, ''))}
               />
             </label>
             <Button type="submit" disabled={!clientId || !passwordValid || syncing}>
-              {syncing ? 'Syncing…' : connected ? 'Sync new emails' : 'Connect Gmail & sync'}
+              {syncing ? 'กำลังซิงก์…' : connected ? 'ซิงก์อีเมลใหม่' : 'เชื่อมต่อ Gmail และซิงก์'}
             </Button>
           </form>
 
           {!connected && (
             <details className="text-muted-foreground text-sm">
-              <summary className="cursor-pointer">Google says "Google hasn't verified this app"?</summary>
+              <summary className="cursor-pointer">Google แจ้งว่า "Google ยังไม่ได้ยืนยันแอปนี้" ใช่ไหม?</summary>
               <div className="mt-2 space-y-2">
                 <p>
-                  That's expected: this app hasn't finished Google's review yet. To continue, click{' '}
-                  <strong>Advanced</strong>, then <strong>Go to … (unsafe)</strong>, and allow reading your Gmail.
+                  เป็นเรื่องปกติ เพราะแอปนี้ยังอยู่ระหว่างการตรวจสอบของ Google หากต้องการดำเนินการต่อ ให้คลิก{' '}
+                  <strong>ขั้นสูง (Advanced)</strong> แล้วคลิก <strong>ไปที่ … (ไม่ปลอดภัย)</strong> และอนุญาตให้อ่าน Gmail
+                  ของคุณ
                 </p>
                 <p>
-                  The access is read-only and stays in this browser: emails are fetched straight from Google into this
-                  page, and the site's security settings stop the page from sending them anywhere else. You can check
-                  the{' '}
+                  สิทธิ์นี้เป็นแบบอ่านอย่างเดียวและอยู่ในเบราว์เซอร์นี้เท่านั้น อีเมลถูกดึงจาก Google มายังหน้านี้โดยตรง
+                  และการตั้งค่าความปลอดภัยของเว็บไซต์ป้องกันไม่ให้หน้านี้ส่งข้อมูลไปที่อื่น คุณตรวจสอบ{' '}
                   <a
                     className="underline underline-offset-2"
                     href="https://github.com/dreamnattapat/dime-portfolio-tracker"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    source code
-                  </a>
-                  , and remove access any time from your{' '}
+                    ซอร์สโค้ด
+                  </a>{' '}
+                  ได้ และยกเลิกสิทธิ์ได้ทุกเมื่อจาก{' '}
                   <a
                     className="underline underline-offset-2"
                     href="https://myaccount.google.com/connections"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Google account
-                  </a>
-                  .
+                    บัญชี Google
+                  </a>{' '}
+                  ของคุณ
                 </p>
               </div>
             </details>
@@ -158,9 +158,9 @@ export default function App() {
 
           {connected && (
             <p className="text-muted-foreground text-sm">
-              Connected to Gmail (read-only).{' '}
+              เชื่อมต่อ Gmail แล้ว (อ่านอย่างเดียว){' '}
               <button className="underline underline-offset-2" onClick={handleDisconnect}>
-                Disconnect
+                ยกเลิกการเชื่อมต่อ
               </button>
             </p>
           )}
@@ -170,19 +170,19 @@ export default function App() {
               <Progress value={progress.total ? (progress.done / progress.total) * 100 : 100} />
               <p className="text-muted-foreground text-sm">
                 {progress.total === 0
-                  ? 'No new Dime! emails.'
-                  : `${progress.done} of ${progress.total} new emails read · ${progress.added} added` +
-                    (progress.failed ? ` · ${progress.failed} failed (will retry next sync)` : '')}
+                  ? 'ไม่มีอีเมล Dime! ใหม่'
+                  : `อ่านอีเมลใหม่แล้ว ${progress.done} จาก ${progress.total} ฉบับ · เพิ่ม ${progress.added} รายการ` +
+                    (progress.failed ? ` · ล้มเหลว ${progress.failed} ฉบับ (จะลองใหม่ในการซิงก์ครั้งถัดไป)` : '')}
               </p>
               {progress.firstError && (
-                <p className="text-destructive text-sm">First error: {progress.firstError}</p>
+                <p className="text-destructive text-sm">ข้อผิดพลาดแรก: {progress.firstError}</p>
               )}
             </div>
           )}
 
           {error && (
             <Alert variant="destructive">
-              <AlertTitle>Sync stopped</AlertTitle>
+              <AlertTitle>การซิงก์หยุดลง</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -195,12 +195,12 @@ export default function App() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Transactions</CardTitle>
+          <CardTitle>รายการซื้อขาย</CardTitle>
           <CardDescription>
             {transactions === undefined
-              ? 'Loading…'
-              : `${transactions.length - unparsedCount} transactions` +
-                (unparsedCount ? ` · ${unparsedCount} PDF(s) couldn't be read` : '')}
+              ? 'กำลังโหลด…'
+              : `${transactions.length - unparsedCount} รายการ` +
+                (unparsedCount ? ` · อ่าน PDF ไม่ได้ ${unparsedCount} ไฟล์` : '')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -208,7 +208,7 @@ export default function App() {
             <TransactionsTable transactions={transactions} />
           ) : (
             transactions && (
-              <p className="text-muted-foreground text-sm">Nothing yet. Sync to pull in your Dime! trades.</p>
+              <p className="text-muted-foreground text-sm">ยังไม่มีข้อมูล กดซิงก์เพื่อดึงรายการซื้อขาย Dime! ของคุณ</p>
             )
           )}
         </CardContent>
@@ -217,7 +217,7 @@ export default function App() {
       <footer className="text-muted-foreground space-y-1 text-xs">
         <p>
           <a className="underline underline-offset-2" href="/privacy">
-            Privacy policy
+            นโยบายความเป็นส่วนตัว
           </a>
           {' · '}
           <a
@@ -226,18 +226,18 @@ export default function App() {
             target="_blank"
             rel="noreferrer"
           >
-            Source code
+            ซอร์สโค้ด
           </a>
           {transactions?.length ? (
             <>
               {' · '}
               <button className="underline underline-offset-2" onClick={handleClear}>
-                Delete local data
+                ลบข้อมูลในเครื่อง
               </button>
             </>
           ) : null}
         </p>
-        <p>Not affiliated with Dime! or KKP Dime Securities Company Limited.</p>
+        <p>เว็บไซต์นี้ไม่มีส่วนเกี่ยวข้องกับ Dime! หรือ KKP Dime Securities Company Limited</p>
       </footer>
     </main>
   )

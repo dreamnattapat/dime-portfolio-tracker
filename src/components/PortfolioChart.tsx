@@ -44,18 +44,18 @@ const gainSince = (value: (p: TimelinePoint) => number) => (p: TimelinePoint, ba
 // Gain first: "am I beating the S&P 500?" is the chart's main question.
 const VIEWS: Record<'gain' | 'value', { label: string; series: SeriesDef[] }> = {
   gain: {
-    label: 'Gain',
+    label: 'กำไร',
     series: [
-      { key: 'you', label: 'Your gain', of: gainSince((p) => p.value) },
-      { key: 'spy', label: 'Gain with the S&P 500', of: gainSince((p) => p.spy) },
+      { key: 'you', label: 'กำไรของคุณ', of: gainSince((p) => p.value) },
+      { key: 'spy', label: 'กำไรถ้าลงทุนใน S&P 500', of: gainSince((p) => p.spy) },
     ],
   },
   value: {
-    label: 'Value',
+    label: 'มูลค่า',
     series: [
-      { key: 'you', label: 'Your portfolio', of: (p) => p.value },
-      { key: 'spy', label: 'Same trades in the S&P 500', of: (p) => p.spy },
-      { key: 'invested', label: 'Net invested', of: (p) => p.invested },
+      { key: 'you', label: 'พอร์ตของคุณ', of: (p) => p.value },
+      { key: 'spy', label: 'ซื้อขายแบบเดียวกันใน S&P 500', of: (p) => p.spy },
+      { key: 'invested', label: 'เงินลงทุนสุทธิ', of: (p) => p.invested },
     ],
   },
 }
@@ -64,7 +64,7 @@ const RANGES = [
   { label: '1M', months: 1 },
   { label: '3M', months: 3 },
   { label: '1Y', months: 12 },
-  { label: 'All', months: null },
+  { label: 'ทั้งหมด', months: null },
 ] as const
 
 function cssVar(name: string): string {
@@ -77,7 +77,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
   const [hovered, setHovered] = useState<number | null>(null)
-  const [range, setRange] = useState<string>('All')
+  const [range, setRange] = useState<string>('ทั้งหมด')
   const [view, setView] = useState<keyof typeof VIEWS>('gain')
   const { series } = VIEWS[view]
   const byDate = useMemo(() => new Map(points.map((p, i) => [p.date, i])), [points])
@@ -189,7 +189,7 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
           ))}
         </dl>
         <div className="flex gap-4">
-          <div className="flex gap-1" role="group" aria-label="Show">
+          <div className="flex gap-1" role="group" aria-label="แสดง">
             {Object.entries(VIEWS).map(([key, v]) => (
               <Button
                 key={key}
@@ -211,12 +211,12 @@ export function PortfolioChart({ points }: { points: TimelinePoint[] }) {
       </p>
       <div ref={containerRef} className="h-72 w-full" />
       <details className="text-sm">
-        <summary className="text-muted-foreground cursor-pointer text-xs">Show table</summary>
+        <summary className="text-muted-foreground cursor-pointer text-xs">แสดงตาราง</summary>
         <div className="mt-2 max-h-80 overflow-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
+                <TableHead>วันที่</TableHead>
                 {series.map((s) => (
                   <TableHead key={s.key} className="text-right">
                     {s.label}
@@ -265,10 +265,10 @@ function RangeChange({
     return (
       <span className="text-muted-foreground tabular-nums">
         {Math.abs(added) < 1
-          ? 'No money added'
+          ? 'ไม่มีเงินเติมเข้า'
           : added > 0
-            ? `${formatMoney(added, '$')} added`
-            : `${formatMoney(-added, '$')} taken out`}
+            ? `เติมเข้า ${formatMoney(added, '$')}`
+            : `ถอนออก ${formatMoney(-added, '$')}`}
       </span>
     )
   }
@@ -300,7 +300,7 @@ function Scorecards({
   onSelect: (range: string) => void
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Time range">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="ช่วงเวลา">
       {RANGES.map((r) => {
         const score = scorecard(points, r.months)
         const active = selected === r.label
@@ -318,7 +318,7 @@ function Scorecards({
             {score ? (
               <dl className="mt-2 space-y-0.5 text-xs">
                 <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">You</dt>
+                  <dt className="text-muted-foreground">คุณ</dt>
                   <dd className="tabular-nums">{formatPercent(score.youPct, { signed: true })}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -327,7 +327,7 @@ function Scorecards({
                 </div>
               </dl>
             ) : (
-              <p className="text-muted-foreground mt-2 text-xs">Not enough history yet</p>
+              <p className="text-muted-foreground mt-2 text-xs">ข้อมูลย้อนหลังยังไม่พอ</p>
             )}
           </button>
         )
@@ -339,7 +339,7 @@ function Scorecards({
 /** Ahead / behind the S&P 500, with an icon so it never relies on color alone. */
 function Verdict({ leadPct }: { leadPct: number }) {
   if (Math.abs(leadPct) < 0.05) {
-    return <span className="text-muted-foreground bg-muted rounded-full px-2 py-0.5 text-xs font-medium">Even</span>
+    return <span className="text-muted-foreground bg-muted rounded-full px-2 py-0.5 text-xs font-medium">เสมอ</span>
   }
   const ahead = leadPct > 0
   const Icon = ahead ? Check : X
@@ -348,7 +348,7 @@ function Verdict({ leadPct }: { leadPct: number }) {
       className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${ahead ? 'bg-delta-up/10 text-delta-up' : 'bg-delta-down/10 text-delta-down'}`}
     >
       <Icon className="size-3" aria-hidden />
-      {ahead ? 'Ahead' : 'Behind'} by {formatPercent(Math.abs(leadPct))}
+      {ahead ? 'นำ' : 'ตามหลัง'} {formatPercent(Math.abs(leadPct))}
     </span>
   )
 }

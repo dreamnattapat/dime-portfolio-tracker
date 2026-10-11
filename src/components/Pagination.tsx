@@ -15,7 +15,7 @@ export function Pagination({ current, pageCount, first, shown, total, setPage, l
   return (
     <nav className="flex items-center justify-between gap-3 text-sm" aria-label={label}>
       <p className="text-muted-foreground tabular-nums">
-        {first + 1}–{first + shown} of {total}
+        {first + 1}–{first + shown} จาก {total}
       </p>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon-sm" disabled={current === 0} onClick={() => setPage(current - 1)}>
@@ -23,7 +23,7 @@ export function Pagination({ current, pageCount, first, shown, total, setPage, l
           <span className="sr-only">{previous}</span>
         </Button>
         <span className="text-muted-foreground tabular-nums">
-          Page {current + 1} of {pageCount}
+          หน้า {current + 1} จาก {pageCount}
         </span>
         <Button
           variant="outline"

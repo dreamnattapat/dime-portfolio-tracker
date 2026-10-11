@@ -274,7 +274,7 @@ export function summarize(timeline: Timeline, pricesAsOf: number | null = null):
 
 /** Fetches SPY, USD/THB and every traded ticker's prices, then values the portfolio. */
 export async function buildPortfolio(flows: CashFlow[], today: string): Promise<Portfolio> {
-  if (!flows.length) throw new Error('No transactions yet')
+  if (!flows.length) throw new Error('ยังไม่มีรายการซื้อขาย')
   const start = flows[0].date
   // A trade can carry tomorrow's date (Thai time is ahead of New York).
   const end = flows.at(-1)!.date > today ? flows.at(-1)!.date : today

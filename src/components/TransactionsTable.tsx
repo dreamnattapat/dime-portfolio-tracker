@@ -3,7 +3,16 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePagination } from '@/hooks/usePagination'
 import type { Transaction } from '@/lib/db'
+import type { TransactionType } from '@/lib/dime/parser'
 import { formatDate, formatNumber, formatUnits } from '@/lib/format'
+
+const TYPE_LABELS: Record<TransactionType, string> = {
+  Buy: 'ซื้อ',
+  Sell: 'ขาย',
+  Reward: 'รางวัล',
+  'Exercise Call': 'ใช้สิทธิ Call',
+  'Exercise Put': 'ใช้สิทธิ Put',
+}
 
 function tradeDate(tx: Transaction): string {
   if (tx.parseStatus === 'ok') return tx.effectiveDate ?? tx.settlementDate
@@ -27,13 +36,13 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Security</TableHead>
-            <TableHead className="text-right">Units</TableHead>
-            <TableHead className="text-right">Price</TableHead>
-            <TableHead className="text-right">Total (USD)</TableHead>
-            <TableHead className="text-right">Total (THB)</TableHead>
+            <TableHead>วันที่</TableHead>
+            <TableHead>ประเภท</TableHead>
+            <TableHead>หลักทรัพย์</TableHead>
+            <TableHead className="text-right">จำนวนหน่วย</TableHead>
+            <TableHead className="text-right">ราคา</TableHead>
+            <TableHead className="text-right">รวม (USD)</TableHead>
+            <TableHead className="text-right">รวม (THB)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -42,7 +51,9 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
               <TableRow key={tx.id}>
                 <TableCell>{formatDate(tradeDate(tx))}</TableCell>
                 <TableCell>
-                  <Badge variant={tx.transactionType === 'Sell' ? 'secondary' : 'outline'}>{tx.transactionType}</Badge>
+                  <Badge variant={tx.transactionType === 'Sell' ? 'secondary' : 'outline'}>
+                    {TYPE_LABELS[tx.transactionType] ?? tx.transactionType}
+                  </Badge>
                 </TableCell>
                 <TableCell className="font-medium">{tx.security}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatUnits(tx.units)}</TableCell>
@@ -54,15 +65,15 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
               <TableRow key={tx.id}>
                 <TableCell>{formatDate(tx.receivedAt)}</TableCell>
                 <TableCell colSpan={6}>
-                  <Badge variant="destructive">Couldn't read</Badge>{' '}
-                  <span className="text-muted-foreground text-xs">Retried on next sync.</span>
+                  <Badge variant="destructive">อ่านไม่ได้</Badge>{' '}
+                  <span className="text-muted-foreground text-xs">จะลองใหม่ในการซิงก์ครั้งถัดไป</span>
                 </TableCell>
               </TableRow>
             ),
           )}
         </TableBody>
       </Table>
-      <Pagination {...pager} label="Transactions pages" previous="Newer" next="Older" />
+      <Pagination {...pager} label="หน้ารายการซื้อขาย" previous="ใหม่กว่า" next="เก่ากว่า" />
     </div>
   )
 }

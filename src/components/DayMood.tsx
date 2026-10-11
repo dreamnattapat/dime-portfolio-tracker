@@ -27,8 +27,8 @@ export function DayMood({ mood }: { mood: 'up' | 'down' }) {
       key={`${mood}-${plays}`}
       className={`mood-tile ${mood === 'up' ? 'bg-delta-up/10' : 'bg-series-you/10'}`}
       onClick={() => setPlays((n) => n + 1)}
-      aria-label={mood === 'up' ? 'Up day. Play the animation again' : 'Down day. Play the animation again'}
-      title="Play again"
+      aria-label={mood === 'up' ? 'วันนี้บวก เล่นแอนิเมชันอีกครั้ง' : 'วันนี้ลบ เล่นแอนิเมชันอีกครั้ง'}
+      title="เล่นอีกครั้ง"
     >
       {mood === 'up' ? (
         <>

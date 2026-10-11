@@ -28,7 +28,7 @@ export function loadGoogleIdentity(): Promise<void> {
     script.onload = () => resolve()
     script.onerror = () => {
       gisLoaded = null
-      reject(new Error("Couldn't load Google sign-in. Check your connection or ad blocker."))
+      reject(new Error('โหลดการเข้าสู่ระบบ Google ไม่ได้ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือตัวบล็อกโฆษณา'))
     }
     document.head.appendChild(script)
   })
@@ -57,14 +57,14 @@ export async function getAccessToken(): Promise<string> {
           return
         }
         if (!google.accounts.oauth2.hasGrantedAllScopes(response, GMAIL_SCOPE)) {
-          reject(new Error('Gmail read access was not granted, so Dime! emails cannot be read.'))
+          reject(new Error('ไม่ได้รับสิทธิ์อ่าน Gmail จึงอ่านอีเมลของ Dime! ไม่ได้'))
           return
         }
         token = { value: response.access_token, expiresAt: Date.now() + Number(response.expires_in) * 1000 }
         resolve(response.access_token)
       },
       error_callback: (error) => {
-        reject(new Error(error.type === 'popup_closed' ? 'Sign-in window was closed.' : error.message))
+        reject(new Error(error.type === 'popup_closed' ? 'หน้าต่างเข้าสู่ระบบถูกปิด' : error.message))
       },
     })
     client.requestAccessToken()

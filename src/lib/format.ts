@@ -15,9 +15,10 @@ export function formatUnits(value: number): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 7 }).format(value)
 }
 
-const dateFormat = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+// Thai month names, Gregorian years (as on Dime!'s confirmations).
+const dateFormat = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { day: '2-digit', month: 'short', year: 'numeric' })
 
-/** "2026-08-27" or a full ISO timestamp -> "27 Aug 2026" */
+/** "2026-08-27" or a full ISO timestamp -> "27 ส.ค. 2026" */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   return dateFormat.format(new Date(iso.length === 10 ? `${iso}T00:00:00` : iso))
@@ -53,7 +54,7 @@ export function formatPercent(value: number | null | undefined, { signed = false
   return `${signed && value > 0 ? '+' : ''}${formatNumber(value, decimals)}%`
 }
 
-const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
+const dateTimeFormat = new Intl.DateTimeFormat('th-TH-u-ca-gregory', {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
@@ -61,7 +62,7 @@ const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
 })
 
-/** ms since epoch or ISO timestamp -> "10 Oct 2026, 03:00", in the user's time zone. */
+/** ms since epoch or ISO timestamp -> "10 ต.ค. 2026 03:00", in the user's time zone. */
 export function formatDateTime(value: number | string | null | undefined): string {
   if (value == null) return '—'
   return dateTimeFormat.format(new Date(value))

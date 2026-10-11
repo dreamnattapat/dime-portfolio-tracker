@@ -10,11 +10,11 @@ import { sumAssets, type AssetPnl } from '@/lib/assets'
 import { formatNumber, formatPercent, formatSignedThb, formatThb, formatUnits } from '@/lib/format'
 
 const COLUMNS = [
-  { key: 'security', label: 'Asset', numeric: false },
-  { key: 'valueThb', label: 'Value', numeric: true },
-  { key: 'unrealizedThb', label: 'Unrealized', numeric: true },
-  { key: 'realizedThb', label: 'Realized', numeric: true },
-  { key: 'totalThb', label: 'Total P&L', numeric: true },
+  { key: 'security', label: 'สินทรัพย์', numeric: false },
+  { key: 'valueThb', label: 'มูลค่า', numeric: true },
+  { key: 'unrealizedThb', label: 'ยังไม่รับรู้', numeric: true },
+  { key: 'realizedThb', label: 'รับรู้แล้ว', numeric: true },
+  { key: 'totalThb', label: 'กำไร/ขาดทุนรวม', numeric: true },
 ] as const
 
 type SortKey = (typeof COLUMNS)[number]['key']
@@ -40,7 +40,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1" role="group" aria-label="Show">
+      <div className="flex gap-1" role="group" aria-label="แสดง">
         {(['all', 'held'] as const).map((f) => (
           <Button
             key={f}
@@ -49,7 +49,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
             aria-pressed={filter === f}
             onClick={() => setFilter(f)}
           >
-            {f === 'all' ? `All (${all.length})` : `Held now (${all.filter((r) => r.held).length})`}
+            {f === 'all' ? `ทั้งหมด (${all.length})` : `ที่ถืออยู่ (${all.filter((r) => r.held).length})`}
           </Button>
         ))}
       </div>
@@ -59,9 +59,9 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
             {COLUMNS.slice(0, 1).map((c) => (
               <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
             ))}
-            <TableHead className="text-right">Units</TableHead>
-            <TableHead className="text-right">Avg cost (USD)</TableHead>
-            <TableHead className="text-right">Price (USD)</TableHead>
+            <TableHead className="text-right">จำนวนหน่วย</TableHead>
+            <TableHead className="text-right">ต้นทุนเฉลี่ย (USD)</TableHead>
+            <TableHead className="text-right">ราคา (USD)</TableHead>
             {COLUMNS.slice(1).map((c) => (
               <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
             ))}
@@ -74,7 +74,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
                 {r.security}{' '}
                 {!r.held && (
                   <Badge variant="outline" className="text-muted-foreground ml-1">
-                    Sold
+                    ขายแล้ว
                   </Badge>
                 )}
               </TableCell>
@@ -84,7 +84,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
               <TableCell className="text-right tabular-nums">{formatNumber(r.avgCostUsd, 4)}</TableCell>
               <TableCell className="text-right tabular-nums">
                 {!r.held ? '—' : r.priceUsd == null ? pending : formatNumber(r.priceUsd)}
-                {r.approximated && <span title="No market price; last trade price">*</span>}
+                {r.approximated && <span title="ไม่มีราคาตลาด ใช้ราคาซื้อขายล่าสุดแทน">*</span>}
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {!r.held ? '—' : r.valueThb == null ? pending : formatThb(r.valueThb)}
@@ -97,7 +97,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={4}>Total{filter === 'held' ? ' (held now)' : ''}</TableCell>
+            <TableCell colSpan={4}>รวม{filter === 'held' ? ' (ที่ถืออยู่)' : ''}</TableCell>
             <TableCell className="text-right tabular-nums">
               {sum((r) => r.valueThb) == null ? pending : formatThb(sum((r) => r.valueThb))}
             </TableCell>
@@ -107,7 +107,7 @@ export function AssetsTable({ assets: all, loading }: { assets: AssetPnl[]; load
           </TableRow>
         </TableFooter>
       </Table>
-      <Pagination {...pager} label="Asset pages" previous="Previous" next="Next" />
+      <Pagination {...pager} label="หน้าสินทรัพย์" previous="ก่อนหน้า" next="ถัดไป" />
     </div>
   )
 }
