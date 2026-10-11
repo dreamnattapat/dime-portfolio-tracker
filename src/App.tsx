@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { Dashboard } from '@/components/Dashboard'
 import { BirthdateStep, ConnectStep, DataPath, Stepper, SyncStatus } from '@/components/Onboarding'
+import { Support } from '@/components/Support'
 import { TransactionsTable } from '@/components/TransactionsTable'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -229,6 +230,8 @@ export default function App() {
           </Card>
         </>
       )}
+
+      <Support className={showSetup ? 'mx-auto max-w-xl' : 'max-w-xl'} />
 
       <footer className={`text-muted-foreground space-y-1 text-xs ${showSetup ? 'mx-auto max-w-xl' : ''}`}>
         <p>
