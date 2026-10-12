@@ -18,7 +18,7 @@
  */
 import type { Transaction } from '@/lib/db'
 import { netAmounts } from '@/lib/dime/fees'
-import type { ParsedTransaction } from '@/lib/dime/parser'
+import type { ParsedTransaction, TransactionType } from '@/lib/dime/parser'
 import { splitFactorAfter, type Split } from '@/lib/prices'
 
 // Smallest fraction of a unit treated as real rather than float residue. Units
@@ -73,6 +73,36 @@ export type AssetTotals = {
   realizedPnlUsd: number
 }
 
+/**
+ * One line of a security's history, oldest first: a trade, or a stock split
+ * (which Dime! sends no email for). It shows where an asset's realized P&L
+ * comes from, sell by sell.
+ */
+export type LedgerEntry = {
+  /** The transaction's id, or `split:<security>:<date>`. */
+  id: string
+  date: string
+  security: string
+  kind: TransactionType | 'Split'
+  /** As on the confirmation (0 for a split). */
+  units: number
+  /** USD, as on the confirmation. */
+  unitPrice: number
+  /** A split's ratio, e.g. 4 for 4:1. */
+  ratio?: number
+  /** Cash paid (buys) or received after all fees (sells); 0 for a split. */
+  amountUsd: number
+  amountThb: number
+  /** Shares held after this line, in shares of that day. */
+  unitsHeld: number
+  /** Average cost per share (of that day) after this line, USD excluding fees; null when none held. */
+  avgCostUsd: number | null
+  /** Sells: what this sale realized. */
+  pnlUsd: number | null
+  pnlThb: number | null
+  basisComplete: boolean
+}
+
 export type TradeStats = {
   rated: number
   wins: number
@@ -91,6 +121,8 @@ export type Analytics = {
   trades: ClosedTrade[]
   openPositions: OpenPosition[]
   cashFlows: CashFlow[]
+  /** Every security's history, oldest first. */
+  ledger: LedgerEntry[]
   stats: TradeStats
   incompleteBasisTrades: number
 }
@@ -105,7 +137,7 @@ export function compareOldestFirst(a: ParsedTransaction, b: ParsedTransaction): 
 }
 
 /** Dime!'s average-cost bookkeeping for one security, in USD excluding fees. */
-type AverageCost = { units: number; costUsd: number }
+type AverageCost = { units: number; costUsd: number; lastDate: string }
 
 /**
  * `splits` (from the price history, once loaded) converts units to today's
@@ -122,8 +154,39 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
   const averages = new Map<string, AverageCost>()
   const trades: ClosedTrade[] = []
   const cashFlows: CashFlow[] = []
+  const ledger: LedgerEntry[] = []
   let buyFeesUsd = 0
   let buyFeesThb = 0
+
+  // Units and average cost in shares of `date` (they're kept in today's shares).
+  const heldOn = (security: string, average: AverageCost, date: string) => {
+    const factor = splitFactorAfter(splits[security], date)
+    return {
+      unitsHeld: average.units > EPS ? average.units / factor : 0,
+      avgCostUsd: average.units > EPS ? (average.costUsd / average.units) * factor : null,
+    }
+  }
+  // Splits of a held security after its previous trade and up to `until` (a trade on the split date is after it).
+  const addSplits = (security: string, average: AverageCost, until: string | null) => {
+    for (const [date, ratio] of splits[security] ?? []) {
+      if (date <= average.lastDate || (until != null && date > until) || average.units <= EPS) continue
+      ledger.push({
+        id: `split:${security}:${date}`,
+        date,
+        security,
+        kind: 'Split',
+        units: 0,
+        unitPrice: 0,
+        ratio,
+        amountUsd: 0,
+        amountThb: 0,
+        ...heldOn(security, average, date),
+        pnlUsd: null,
+        pnlThb: null,
+        basisComplete: true,
+      })
+    }
+  }
 
   for (const row of rows) {
     if (row.totalAmountThb == null) continue
@@ -147,7 +210,20 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
         (asset = { security: row.security, boughtThb: 0, boughtUsd: 0, realizedPnlThb: 0, realizedPnlUsd: 0 }),
       )
     let average = averages.get(row.security)
-    if (!average) averages.set(row.security, (average = { units: 0, costUsd: 0 }))
+    if (!average) averages.set(row.security, (average = { units: 0, costUsd: 0, lastDate: '' }))
+    const date = tradeDate(row)
+    addSplits(row.security, average, date)
+    average.lastDate = date
+    const entry = {
+      id: row.id,
+      date,
+      security: row.security,
+      kind: row.transactionType,
+      units: row.units,
+      unitPrice: row.unitPrice,
+      amountUsd: isSell ? net.usd : row.totalAmount,
+      amountThb: isSell ? proceedsThb : row.totalAmountThb,
+    }
 
     const units = row.units * splitFactorAfter(splits[row.security], tradeDate(row))
     if (!isSell) {
@@ -160,6 +236,7 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
       // Whatever was paid beyond the shares' price: commission and VAT.
       buyFeesUsd += row.totalAmount - costUsd
       buyFeesThb += row.totalAmountThb - (row.grossAmountThb ?? row.totalAmountThb)
+      ledger.push({ ...entry, ...heldOn(row.security, average, date), pnlUsd: null, pnlThb: null, basisComplete: true })
       continue
     }
 
@@ -179,6 +256,7 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
     const pnlThb = pnlUsd * rate
     asset.realizedPnlUsd += pnlUsd
     asset.realizedPnlThb += pnlThb
+    ledger.push({ ...entry, ...heldOn(row.security, average, date), pnlUsd, pnlThb, basisComplete })
     trades.push({
       date: tradeDate(row),
       security: row.security,
@@ -189,6 +267,10 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
       basisComplete,
     })
   }
+
+  // Splits since the last trade of what's still held.
+  for (const [security, average] of averages) addSplits(security, average, null)
+  ledger.sort((a, b) => a.security.localeCompare(b.security) || a.date.localeCompare(b.date))
 
   const openPositions: OpenPosition[] = []
   for (const [security, average] of averages) {
@@ -205,6 +287,7 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
     trades: trades.toReversed(),
     openPositions,
     cashFlows,
+    ledger,
     stats: computeTradeStats(trades.filter((t) => !WIN_RATE_EXCLUDED.has(t.security))),
     incompleteBasisTrades: trades.filter((t) => !t.basisComplete).length,
   }

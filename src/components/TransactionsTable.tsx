@@ -2,21 +2,14 @@ import { ChevronDown, ExternalLink } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
 import { Pagination } from '@/components/Pagination'
+import { TradeBadge } from '@/components/TradeBadge'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePagination } from '@/hooks/usePagination'
 import type { Transaction } from '@/lib/db'
 import { netAmounts, otherSellFees } from '@/lib/dime/fees'
-import type { ParsedTransaction, TransactionType } from '@/lib/dime/parser'
+import type { ParsedTransaction } from '@/lib/dime/parser'
 import { formatAmount, formatDate, formatNumber, formatUnits } from '@/lib/format'
-
-const TYPE_LABELS: Record<TransactionType, string> = {
-  Buy: 'ซื้อ',
-  Sell: 'ขาย',
-  Reward: 'รางวัล',
-  'Exercise Call': 'ใช้สิทธิ Call',
-  'Exercise Put': 'ใช้สิทธิ Put',
-}
 
 function tradeDate(tx: Transaction): string {
   if (tx.parseStatus === 'ok') return tx.effectiveDate ?? tx.settlementDate
@@ -70,9 +63,7 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
                 >
                   <TableCell>{formatDate(tradeDate(tx))}</TableCell>
                   <TableCell>
-                    <Badge variant={tx.transactionType === 'Sell' ? 'secondary' : 'outline'}>
-                      {TYPE_LABELS[tx.transactionType] ?? tx.transactionType}
-                    </Badge>
+                    <TradeBadge kind={tx.transactionType} />
                   </TableCell>
                   <TableCell className="font-medium">{tx.security}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatUnits(tx.units)}</TableCell>

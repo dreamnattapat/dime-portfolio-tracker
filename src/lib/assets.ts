@@ -8,7 +8,7 @@
  * (analytics.ts), so a row's total is the stock's own result before buy fees
  * (those, and the USD/THB move, are shown separately in the summary).
  */
-import type { Analytics } from '@/lib/analytics'
+import type { Analytics, LedgerEntry } from '@/lib/analytics'
 import type { Timeline } from '@/lib/benchmark'
 import type { Currency } from '@/lib/format'
 
@@ -29,6 +29,8 @@ export type AssetPnl = {
   /** Total P&L as % of everything ever spent buying it. */
   totalPct: number | null
   approximated: boolean
+  /** Its trades (and splits), oldest first: where the realized P&L comes from. */
+  history: LedgerEntry[]
 }
 
 export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null, currency: Currency = '฿'): AssetPnl[] {
@@ -66,6 +68,7 @@ export function computeAssetPnl(analytics: Analytics, timeline: Timeline | null,
       total,
       totalPct: total != null && bought ? (total / bought) * 100 : null,
       approximated: holding?.approximated ?? false,
+      history: analytics.ledger.filter((e) => e.security === asset.security),
     }
   })
 }

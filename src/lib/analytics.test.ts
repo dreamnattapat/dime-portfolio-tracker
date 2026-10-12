@@ -75,6 +75,18 @@ describe('computeAnalytics', () => {
     ])
   })
 
+  it("adds up each sale's P&L to the asset's realized", () => {
+    const result = computeAnalytics([
+      tx('2026-01-02', 'Buy', 'AAPL', 10, 1000),
+      tx('2026-02-02', 'Sell', 'AAPL', 4, 600),
+      tx('2026-03-02', 'Sell', 'AAPL', 6, 500),
+    ])
+    const sells = result.ledger.filter((e) => e.kind === 'Sell')
+    expect(sells.map((e) => e.pnlThb)).toEqual([expect.closeTo(200), expect.closeTo(-100)])
+    expect(sells.reduce((sum, e) => sum + e.pnlThb!, 0)).toBeCloseTo(result.assets[0].realizedPnlThb)
+    expect(result.ledger.at(-1)).toMatchObject({ unitsHeld: 0, avgCostUsd: null })
+  })
+
   it('resets the average after selling out', () => {
     const result = computeAnalytics([
       tx('2026-01-02', 'Buy', 'AAPL', 10, 1000),
@@ -113,6 +125,15 @@ describe('computeAnalytics', () => {
     )
     expect(result.openPositions).toEqual([{ security: 'NVDA', units: 6, avgCostBasisUsd: expect.closeTo(600) }])
     expect(result.trades[0]).toMatchObject({ units: 6, basisComplete: true, pnlUsd: expect.closeTo(120) })
+    // The history: the split shows up between the trades, in shares of each day.
+    expect(
+      result.ledger.map((e) => [e.kind, e.unitsHeld, e.avgCostUsd && Math.round(e.avgCostUsd * 100) / 100, e.pnlUsd]),
+    ).toEqual([
+      ['Buy', 2, 400, null],
+      ['Split', 8, 100, null],
+      ['Buy', 12, 100, null],
+      ['Sell', 6, 100, expect.closeTo(120)],
+    ])
   })
 
   it('sorts by date, not by the order rows are stored in', () => {

@@ -10,6 +10,7 @@ const analytics = {
     { security: 'GOOG', boughtThb: 20_000, boughtUsd: 600, realizedPnlThb: 16_331, realizedPnlUsd: 509 },
   ],
   openPositions: [{ security: 'SGOV', units: 66.8120464, avgCostBasisUsd: 66.8120464 * 100.6386 }],
+  ledger: [],
 } as unknown as Analytics
 
 const timeline = {
