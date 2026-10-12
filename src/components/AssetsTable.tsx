@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
 import { Pagination } from '@/components/Pagination'
+import { SearchBox } from '@/components/SearchBox'
 import { TradeBadge } from '@/components/TradeBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { usePagination } from '@/hooks/usePagination'
 import type { LedgerEntry } from '@/lib/analytics'
 import { sumAssets, type AssetPnl } from '@/lib/assets'
+import { matchesSearch, parseSearch } from '@/lib/search'
 import {
   formatDate,
   formatMoney,
@@ -44,12 +46,17 @@ export function AssetsTable({
   // Tap a row to see its trades and what each sale realized.
   const [open, setOpen] = useState<string | null>(null)
 
-  const filtered = filter === 'held' ? all.filter((r) => r.held) : all
+  const [search, setSearch] = useState('')
+
+  // Only tickers here: a trade type means nothing for a whole asset.
+  const query = { ...parseSearch(search), types: [] }
+  const filtered = all.filter((r) => (filter === 'all' || r.held) && matchesSearch(query, r))
   const sorted = filtered.toSorted((a, b) => {
     const order = compare(a[sort.key], b[sort.key]) || compare(a.total, b.total)
     return sort.desc ? -order : order
   })
   const { rows, pager } = usePagination(sorted)
+  const searching = query.tickers.length > 0
   const pending = loading ? '…' : '—'
 
   const sum = (pick: (r: AssetPnl) => number | null) => sumAssets(filtered, pick)
@@ -60,18 +67,30 @@ export function AssetsTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1" role="group" aria-label="แสดง">
-        {(['all', 'held'] as const).map((f) => (
-          <Button
-            key={f}
-            size="xs"
-            variant={filter === f ? 'secondary' : 'ghost'}
-            aria-pressed={filter === f}
-            onClick={() => setFilter(f)}
-          >
-            {f === 'all' ? `ทั้งหมด (${all.length})` : `ที่ถืออยู่ (${all.filter((r) => r.held).length})`}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1" role="group" aria-label="แสดง">
+          {(['all', 'held'] as const).map((f) => (
+            <Button
+              key={f}
+              size="xs"
+              variant={filter === f ? 'secondary' : 'ghost'}
+              aria-pressed={filter === f}
+              onClick={() => setFilter(f)}
+            >
+              {f === 'all' ? `ทั้งหมด (${all.length})` : `ที่ถืออยู่ (${all.filter((r) => r.held).length})`}
+            </Button>
+          ))}
+        </div>
+        <SearchBox
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            pager.setPage(0)
+          }}
+          placeholder="ค้นหาหุ้น เช่น AVGO"
+          label="ค้นหาสินทรัพย์"
+          className="w-full sm:w-60"
+        />
       </div>
       <Table>
         <TableHeader>
@@ -91,6 +110,13 @@ export function AssetsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
+          {rows.length === 0 && (
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={9} className="text-muted-foreground py-6 text-center">
+                ไม่พบ “{search.trim()}”{filter === 'held' ? ' ในหุ้นที่ถืออยู่' : ''}
+              </TableCell>
+            </TableRow>
+          )}
           {rows.map((r) => (
             <Fragment key={r.security}>
               <TableRow
@@ -144,7 +170,10 @@ export function AssetsTable({
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={4}>รวม{filter === 'held' ? ' (ที่ถืออยู่)' : ''}</TableCell>
+            <TableCell colSpan={4}>
+              รวม{filter === 'held' ? ' (ที่ถืออยู่)' : ''}
+              {searching ? ` (${filtered.length} ตัวที่ค้นหา)` : ''}
+            </TableCell>
             <TableCell className="text-right tabular-nums">
               {sum((r) => r.value) == null
                 ? pending

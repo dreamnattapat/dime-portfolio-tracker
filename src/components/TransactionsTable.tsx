@@ -2,6 +2,7 @@ import { ChevronDown, ExternalLink } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
 import { Pagination } from '@/components/Pagination'
+import { SearchBox } from '@/components/SearchBox'
 import { TradeBadge } from '@/components/TradeBadge'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -10,6 +11,7 @@ import type { Transaction } from '@/lib/db'
 import { netAmounts, otherSellFees } from '@/lib/dime/fees'
 import type { ParsedTransaction } from '@/lib/dime/parser'
 import { formatAmount, formatDate, formatNumber, formatUnits } from '@/lib/format'
+import { matchesSearch, parseSearch } from '@/lib/search'
 
 function tradeDate(tx: Transaction): string {
   if (tx.parseStatus === 'ok') return tx.effectiveDate ?? tx.settlementDate
@@ -31,12 +33,36 @@ function gmailLink(messageId: string): string {
 }
 
 export function TransactionsTable({ transactions }: { transactions: Transaction[] }) {
-  const { rows, pager } = usePagination([...transactions].sort(compareNewestFirst))
+  const [search, setSearch] = useState('')
+  const query = parseSearch(search)
+  const searching = query.tickers.length > 0 || query.types.length > 0
+  // Emails that couldn't be read have nothing to match, so a search leaves them out.
+  const matching = searching
+    ? transactions.filter((tx) => tx.parseStatus === 'ok' && matchesSearch(query, tx))
+    : transactions
+  const { rows, pager } = usePagination([...matching].sort(compareNewestFirst))
   // Tap a row to see what the site read from its email, and a link to the email.
   const [open, setOpen] = useState<string | null>(null)
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SearchBox
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            pager.setPage(0)
+          }}
+          placeholder="ค้นหาหุ้น, ซื้อ/ขาย หรือเลขที่คำสั่ง"
+          label="ค้นหารายการซื้อขาย"
+          className="w-full sm:w-72"
+        />
+        {searching && (
+          <p className="text-muted-foreground text-sm" aria-live="polite">
+            พบ {matching.length} จาก {transactions.length} รายการ
+          </p>
+        )}
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -53,6 +79,13 @@ export function TransactionsTable({ transactions }: { transactions: Transaction[
           </TableRow>
         </TableHeader>
         <TableBody>
+          {rows.length === 0 && searching && (
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={8} className="text-muted-foreground py-6 text-center">
+                ไม่พบ “{search.trim()}”
+              </TableCell>
+            </TableRow>
+          )}
           {rows.map((tx) =>
             tx.parseStatus === 'ok' ? (
               <Fragment key={tx.id}>
