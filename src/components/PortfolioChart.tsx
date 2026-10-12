@@ -16,7 +16,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   changeBetween,
   cumulativeReturns,
-  monthsBefore,
   rangeStart,
   scorecard,
   type TimelinePoint,
@@ -106,10 +105,13 @@ function cssVar(name: string): string {
 /** Your portfolio vs the S&P 500 mirror, day by day, in baht (USD/THB moves included) or USD. */
 export function PortfolioChart({
   points,
+  latestSession,
   currency,
   hideAmounts,
 }: {
   points: TimelinePoint[]
+  /** The latest US trading day: ranges count back from it, like brokers' 1M / 1Y. */
+  latestSession: string
   currency: Currency
   hideAmounts: boolean
 }) {
@@ -187,7 +189,7 @@ export function PortfolioChart({
 
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.
-  const start = Math.max(0, rangeStart(points, months ?? null))
+  const start = Math.max(0, rangeStart(points, months ?? null, latestSession))
   const base = points[start]
   const cum = useMemo<Cumulative>(
     () => ({ you: cumulativeReturns(points, start), spy: cumulativeReturns(points, start, (p) => p.spy) }),
@@ -214,16 +216,9 @@ export function PortfolioChart({
     const last = points.at(-1)
     const chart = chartRef.current
     if (chart && last) {
-      const from =
-        months == null
-          ? 0
-          : Math.max(
-              0,
-              points.findIndex((p) => p.date >= monthsBefore(last.date, months)),
-            )
-      chart.timeScale().setVisibleLogicalRange({ from, to: points.length - 1 })
+      chart.timeScale().setVisibleLogicalRange({ from: start, to: points.length - 1 })
     }
-  }, [points, view, base, cum, replay, months])
+  }, [points, view, base, cum, replay, start])
 
   function stopReplay() {
     if (replayFrame.current != null) cancelAnimationFrame(replayFrame.current)
@@ -279,6 +274,7 @@ export function PortfolioChart({
     <div className="space-y-3">
       <Scorecards
         points={points}
+        latestSession={latestSession}
         selected={range}
         onSelect={(r) => {
           stopReplay()
@@ -442,17 +438,19 @@ function RangeChange({
 /** "Am I beating the S&P 500?" for each range; each card also selects that range for the chart. */
 function Scorecards({
   points,
+  latestSession,
   selected,
   onSelect,
 }: {
   points: TimelinePoint[]
+  latestSession: string
   selected: string
   onSelect: (range: string) => void
 }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="ช่วงเวลา">
       {RANGES.map((r) => {
-        const score = scorecard(points, r.months)
+        const score = scorecard(points, r.months, latestSession)
         const active = selected === r.label
         return (
           <button

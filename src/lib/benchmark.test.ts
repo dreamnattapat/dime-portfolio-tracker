@@ -8,6 +8,7 @@ import {
   dayChange,
   monthsBefore,
   periodChange,
+  rangeStart,
   scorecard,
   type TimelinePoint,
 } from './benchmark'
@@ -213,6 +214,37 @@ describe('cumulativeReturns', () => {
 
   it('is empty before the start', () => {
     expect(cumulativeReturns(points, 2)).toEqual([null, null, 0, expect.closeTo(10)])
+  })
+})
+
+describe('rangeStart', () => {
+  const point = (date: string, value: number): TimelinePoint => ({
+    date,
+    value,
+    spy: value,
+    invested: 0,
+    bought: 0,
+    sold: 0,
+  })
+  // A Monday morning in Thailand: the last point is today's date, but the
+  // latest US trading day is Friday 9 Oct. A year back from Friday is Thursday
+  // 9 Oct 2025 (as brokers count), not Friday 10 Oct 2025, a -2.7% day.
+  const points = [
+    point('2025-10-08', 100),
+    point('2025-10-09', 100),
+    point('2025-10-10', 97.3),
+    point('2026-10-09', 116),
+    point('2026-10-12', 116),
+  ]
+
+  it('counts back from the latest trading day', () => {
+    expect(points[rangeStart(points, 12, '2026-10-09')].date).toBe('2025-10-09')
+    expect(scorecard(points, 12, '2026-10-09')!.spyPct).toBeCloseTo(16)
+    expect(periodChange(points, 12, '2026-10-09')!.returnPct).toBeCloseTo(16)
+  })
+
+  it('without an anchor, counts back from the last point', () => {
+    expect(points[rangeStart(points, 12)].date).toBe('2025-10-10')
   })
 })
 

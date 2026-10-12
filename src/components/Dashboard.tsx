@@ -120,6 +120,7 @@ export function Dashboard({
             <>
               <PortfolioChart
                 points={usd ? portfolio.timeline.pointsUsd : portfolio.timeline.points}
+                latestSession={portfolio.timeline.latestSession}
                 currency={currency}
                 hideAmounts={hideAmounts}
               />

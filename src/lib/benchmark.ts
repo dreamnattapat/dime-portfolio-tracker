@@ -167,15 +167,16 @@ export type PeriodChange = {
 
 /**
  * How the portfolio did over the last `months` months, or null if the history
- * is shorter than that.
+ * is shorter than that. Counted back from `anchor`, the latest US trading day
+ * (see rangeStart).
  */
-export function periodChange(points: TimelinePoint[], months: number): PeriodChange | null {
+export function periodChange(
+  points: TimelinePoint[],
+  months: number,
+  anchor = points.at(-1)?.date,
+): PeriodChange | null {
   if (!points.length) return null
-  const from = monthsBefore(points.at(-1)!.date, months)
-  return changeBetween(
-    points,
-    points.findLastIndex((p) => p.date <= from),
-  )
+  return changeBetween(points, rangeStart(points, months, anchor))
 }
 
 /**
@@ -243,10 +244,15 @@ export function cumulativeReturns(
 /**
  * Index where a range of `months` ending at the last point starts, 0 for the
  * whole history (null months), or -1 if the history is shorter than that.
+ *
+ * Counted back from `anchor`: pass the latest US trading day, as brokers do.
+ * The last point can be today's date before the US market opens (a Monday
+ * morning in Thailand), and counting back from that would start the range a
+ * trading day late; that one day can be a big move.
  */
-export function rangeStart(points: TimelinePoint[], months: number | null): number {
-  if (months == null || !points.length) return 0
-  const from = monthsBefore(points.at(-1)!.date, months)
+export function rangeStart(points: TimelinePoint[], months: number | null, anchor = points.at(-1)?.date): number {
+  if (months == null || !points.length || !anchor) return 0
+  const from = monthsBefore(anchor, months)
   return points.findLastIndex((p) => p.date <= from)
 }
 
@@ -260,8 +266,12 @@ export type Scorecard = {
 }
 
 /** Am I beating the S&P 500 over the last `months` (null = all history)? Null if too little history. */
-export function scorecard(points: TimelinePoint[], months: number | null): Scorecard | null {
-  const start = rangeStart(points, months)
+export function scorecard(
+  points: TimelinePoint[],
+  months: number | null,
+  anchor = points.at(-1)?.date,
+): Scorecard | null {
+  const start = rangeStart(points, months, anchor)
   const you = changeBetween(points, start)
   const spy = changeBetween(points, start, points.length - 1, (p) => p.spy)
   if (!you || !spy) return null
@@ -305,12 +315,12 @@ export function summarize(
     valueThb: value,
     totalGainThb: value - invested,
     day: dayChange(timeline.points, timeline.latestSession),
-    mom: periodChange(timeline.points, 1),
-    yoy: periodChange(timeline.points, 12),
+    mom: periodChange(timeline.points, 1, timeline.latestSession),
+    yoy: periodChange(timeline.points, 12, timeline.latestSession),
     valueUsd: timeline.pointsUsd.at(-1)?.value ?? 0,
     dayUsd: dayChange(timeline.pointsUsd, timeline.latestSession),
-    momUsd: periodChange(timeline.pointsUsd, 1),
-    yoyUsd: periodChange(timeline.pointsUsd, 12),
+    momUsd: periodChange(timeline.pointsUsd, 1, timeline.latestSession),
+    yoyUsd: periodChange(timeline.pointsUsd, 12, timeline.latestSession),
   }
 }
 
