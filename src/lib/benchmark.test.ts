@@ -4,6 +4,7 @@ import type { CashFlow } from './analytics'
 import {
   changeBetween,
   computeTimeline,
+  cumulativeReturns,
   dayChange,
   monthsBefore,
   periodChange,
@@ -183,6 +184,35 @@ describe('scorecard', () => {
 
   it('returns null when the history is shorter than the range', () => {
     expect(scorecard(points, 24)).toBeNull()
+  })
+})
+
+describe('cumulativeReturns', () => {
+  const point = (value: number, spy: number, bought = 0, sold = 0): TimelinePoint => ({
+    date: '2026-01-01',
+    value,
+    spy,
+    invested: 0,
+    bought,
+    sold,
+  })
+  // Buy 1000, grow 10%, add 1000 more (doesn't count as growth), grow 10% again.
+  const points = [point(1000, 1000, 1000), point(1100, 1050), point(2100, 2050, 1000), point(2310, 2152.5)]
+
+  it("gives each day's time-weighted return since the start", () => {
+    const you = cumulativeReturns(points, 0)
+    expect(you[0]).toBe(0)
+    expect(you[1]).toBeCloseTo(10)
+    expect(you[2]).toBeCloseTo(10) // the 1000 added isn't growth
+    expect(you[3]).toBeCloseTo(21) // 1.1 x 1.1
+    expect(you.at(-1)).toBeCloseTo(changeBetween(points, 0)!.returnPct)
+    expect(cumulativeReturns(points, 0, (p) => p.spy).at(-1)).toBeCloseTo(
+      changeBetween(points, 0, 3, (p) => p.spy)!.returnPct,
+    )
+  })
+
+  it('is empty before the start', () => {
+    expect(cumulativeReturns(points, 2)).toEqual([null, null, 0, expect.closeTo(10)])
   })
 })
 

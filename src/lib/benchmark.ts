@@ -218,6 +218,29 @@ export function changeBetween(
 }
 
 /**
+ * The time-weighted return from points[start] to every later day, %: a
+ * running version of changeBetween, for a "% since" line. Null before `start`.
+ */
+export function cumulativeReturns(
+  points: TimelinePoint[],
+  start: number,
+  valueOf: (p: TimelinePoint) => number = (p) => p.value,
+): (number | null)[] {
+  const out: (number | null)[] = points.map(() => null)
+  if (start < 0 || start >= points.length) return out
+  let growth = 1
+  out[start] = 0
+  for (let j = start + 1; j < points.length; j++) {
+    const prev = valueOf(points[j - 1])
+    const p = points[j]
+    const base = prev + p.bought
+    if (base > 1) growth *= (valueOf(p) + p.sold) / base // skip days fully in cash
+    out[j] = (growth - 1) * 100
+  }
+  return out
+}
+
+/**
  * Index where a range of `months` ending at the last point starts, 0 for the
  * whole history (null months), or -1 if the history is shorter than that.
  */

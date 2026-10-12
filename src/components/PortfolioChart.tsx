@@ -8,12 +8,19 @@ import {
   type ISeriesApi,
   type Time,
 } from 'lightweight-charts'
-import { ArrowDownRight, ArrowUpRight, Check, X } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Check, Play, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { changeBetween, monthsBefore, rangeStart, scorecard, type TimelinePoint } from '@/lib/benchmark'
+import {
+  changeBetween,
+  cumulativeReturns,
+  monthsBefore,
+  rangeStart,
+  scorecard,
+  type TimelinePoint,
+} from '@/lib/benchmark'
 import {
   formatCompactMoney,
   formatDate,
@@ -30,8 +37,17 @@ const LINES = {
 } as const
 
 type LineKey = keyof typeof LINES
-/** `of` gives a line's value on day `p`; `base` is the first day of the selected range. */
-type SeriesDef = { key: LineKey; label: string; of: (p: TimelinePoint, base: TimelinePoint) => number }
+/** Each line's running time-weighted return since the start of the selected range, by point index. */
+type Cumulative = { you: (number | null)[]; spy: (number | null)[] }
+/**
+ * `of` gives a line's value on day `p` (index `i`); `base` is the first day of
+ * the selected range. Null means no value yet (before the range, in the % view).
+ */
+type SeriesDef = {
+  key: LineKey
+  label: string
+  of: (p: TimelinePoint, base: TimelinePoint, i: number, cum: Cumulative) => number | null
+}
 
 // Each line's change over the selected range. Your portfolio and the mirror
 // count gain only, not money added (the same in both views); net invested
@@ -48,8 +64,17 @@ const VALUE_OF: Partial<Record<LineKey, (p: TimelinePoint) => number>> = {
 const gainSince = (value: (p: TimelinePoint) => number) => (p: TimelinePoint, base: TimelinePoint) =>
   value(p) - p.invested - (value(base) - base.invested)
 
-// Gain first: "am I beating the S&P 500?" is the chart's main question.
-const VIEWS: Record<'gain' | 'value', { label: string; series: SeriesDef[] }> = {
+// % first: one return line each, like the S&P 500 comparisons people share.
+// Time-weighted, so money added or taken out doesn't count, and the S&P 500
+// line works out to SPY's own return over the range.
+const VIEWS: Record<'pct' | 'gain' | 'value', { label: string; series: SeriesDef[] }> = {
+  pct: {
+    label: '%',
+    series: [
+      { key: 'you', label: 'ผลตอบแทนของคุณ', of: (_p, _b, i, cum) => cum.you[i] },
+      { key: 'spy', label: 'S&P 500', of: (_p, _b, i, cum) => cum.spy[i] },
+    ],
+  },
   gain: {
     label: 'กำไร',
     series: [
@@ -93,7 +118,10 @@ export function PortfolioChart({
   const seriesRef = useRef<Map<LineKey, ISeriesApi<'Line'>>>(new Map())
   const [hovered, setHovered] = useState<number | null>(null)
   const [range, setRange] = useState<string>('ทั้งหมด')
-  const [view, setView] = useState<keyof typeof VIEWS>('gain')
+  const [view, setView] = useState<keyof typeof VIEWS>('pct')
+  // The replay: the last point index drawn while the lines grow to today, or null.
+  const [replay, setReplay] = useState<number | null>(null)
+  const replayFrame = useRef<number | null>(null)
   const { series } = VIEWS[view]
   const byDate = useMemo(() => new Map(points.map((p, i) => [p.date, i])), [points])
   // The crosshair handler is set up once, so it reads the latest points through a ref.
@@ -145,49 +173,118 @@ export function PortfolioChart({
     }
   }, [])
 
-  // The axis labels are drawn by the chart, not React: redraw them when amounts are hidden or shown.
+  // The axis labels are drawn by the chart, not React: redraw them when the
+  // view, the currency or "hide amounts" changes. Percentages are never hidden.
   useEffect(() => {
     chartRef.current?.applyOptions({
       localization: {
         locale: 'th-TH-u-ca-gregory',
-        priceFormatter: (value: number) => formatCompactMoney(value, currency),
+        priceFormatter: (value: number) =>
+          view === 'pct' ? `${Math.round(value)}%` : formatCompactMoney(value, currency),
       },
     })
-  }, [hideAmounts, currency])
+  }, [hideAmounts, currency, view])
 
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.
   const start = Math.max(0, rangeStart(points, months ?? null))
   const base = points[start]
+  const cum = useMemo<Cumulative>(
+    () => ({ you: cumulativeReturns(points, start), spy: cumulativeReturns(points, start, (p) => p.spy) }),
+    [points, start],
+  )
 
   useEffect(() => {
     if (!base) return
     for (const [key, line] of seriesRef.current) {
       const def = VIEWS[view].series.find((s) => s.key === key)
       line.applyOptions({ visible: !!def })
-      line.setData(def ? points.map((p) => ({ time: p.date as Time, value: def.of(p, base) })) : [])
+      line.setData(
+        def
+          ? points.map((p, i) => {
+              // Days before the range (% view) or not yet reached by the replay stay empty.
+              const value = replay != null && i > replay ? null : def.of(p, base, i, cum)
+              return value == null ? { time: p.date as Time } : { time: p.date as Time, value }
+            })
+          : [],
+      )
     }
-  }, [points, view, base])
-
-  useEffect(() => {
-    const chart = chartRef.current
+    // Show the selected range, from its first day to today, whatever has been drawn so far.
+    // (Left alone, the chart scrolls to the last day with a value, which mid-replay is near the start.)
     const last = points.at(-1)
-    if (!chart || !last) return
-    if (months == null || points[0].date > monthsBefore(last.date, months)) chart.timeScale().fitContent()
-    else chart.timeScale().setVisibleRange({ from: monthsBefore(last.date, months) as Time, to: last.date as Time })
-  }, [points, months, view])
+    const chart = chartRef.current
+    if (chart && last) {
+      const from =
+        months == null
+          ? 0
+          : Math.max(
+              0,
+              points.findIndex((p) => p.date >= monthsBefore(last.date, months)),
+            )
+      chart.timeScale().setVisibleLogicalRange({ from, to: points.length - 1 })
+    }
+  }, [points, view, base, cum, replay, months])
 
-  // The readout covers the selected range, up to the hovered day or the latest.
-  const end = hovered ?? points.length - 1
+  function stopReplay() {
+    if (replayFrame.current != null) cancelAnimationFrame(replayFrame.current)
+    replayFrame.current = null
+    setReplay(null)
+  }
+
+  /** Grows the lines from the start of the range to today, like a screen-recordable replay. */
+  function startReplay() {
+    stopReplay()
+    const last = points.length - 1
+    if (start >= last) return
+    // About 8 seconds for a long history, quicker for a short one.
+    const duration = Math.min(8000, Math.max(3000, (last - start) * 12))
+    const began = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - began) / duration)
+      setReplay(start + Math.round(t * (last - start)))
+      if (t < 1) replayFrame.current = requestAnimationFrame(step)
+      else {
+        replayFrame.current = null
+        // Hold the finished picture briefly, then hand back to normal hovering.
+        setTimeout(() => setReplay((r) => (r === last ? null : r)), 1500)
+      }
+    }
+    setReplay(start)
+    replayFrame.current = requestAnimationFrame(step)
+  }
+
+  // Leaving the page ends any replay; choosing a range or view does too (below).
+  useEffect(
+    () => () => {
+      if (replayFrame.current != null) cancelAnimationFrame(replayFrame.current)
+    },
+    [],
+  )
+
+  // The readout covers the selected range, up to the replayed, hovered or latest day.
+  const end = replay ?? hovered ?? points.length - 1
   const shown = points[end]
   const monthEnds = points.filter(
     (p, i) => i >= start && (i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7)),
   )
   const money = view === 'gain' ? formatSignedMoney : formatMoney
+  /** One line's value for the readout and table: % in the % view, money otherwise. */
+  const display = (s: SeriesDef, p: TimelinePoint, i: number) => {
+    const value = s.of(p, base, i, cum)
+    if (value == null) return '—'
+    return view === 'pct' ? formatPercent(value, { signed: true }) : money(value, currency)
+  }
 
   return (
     <div className="space-y-3">
-      <Scorecards points={points} selected={range} onSelect={setRange} />
+      <Scorecards
+        points={points}
+        selected={range}
+        onSelect={(r) => {
+          stopReplay()
+          setRange(r)
+        }}
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         {/* Legend and readout in one: values for the hovered day, or the latest. */}
         <dl className="flex flex-wrap gap-x-6 gap-y-2">
@@ -208,21 +305,31 @@ export function PortfolioChart({
                 </svg>
                 {s.label}
               </dt>
-              <dd className="text-sm font-semibold tabular-nums">{shown ? money(s.of(shown, base), currency) : '—'}</dd>
+              <dd className="text-sm font-semibold tabular-nums">{shown ? display(s, shown, end) : '—'}</dd>
               <dd className="text-xs">
                 <RangeChange
                   points={points}
                   start={start}
                   end={end}
                   line={s.key}
-                  showAmount={view === 'value'}
+                  show={view === 'pct' ? 'amount' : view === 'value' ? 'both' : 'pct'}
                   currency={currency}
                 />
               </dd>
             </div>
           ))}
         </dl>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="xs"
+            variant="outline"
+            className="rounded-full"
+            onClick={replay == null ? startReplay : stopReplay}
+            disabled={start >= points.length - 1}
+          >
+            {replay == null ? <Play aria-hidden /> : <Square aria-hidden />}
+            {replay == null ? 'เล่นย้อนหลัง' : 'หยุด'}
+          </Button>
           <div className="flex gap-1" role="group" aria-label="แสดง">
             {Object.entries(VIEWS).map(([key, v]) => (
               <Button
@@ -230,7 +337,10 @@ export function PortfolioChart({
                 size="xs"
                 variant={view === key ? 'secondary' : 'ghost'}
                 aria-pressed={view === key}
-                onClick={() => setView(key as keyof typeof VIEWS)}
+                onClick={() => {
+                  stopReplay()
+                  setView(key as keyof typeof VIEWS)
+                }}
               >
                 {v.label}
               </Button>
@@ -264,7 +374,7 @@ export function PortfolioChart({
                   <TableCell>{formatDate(p.date)}</TableCell>
                   {series.map((s) => (
                     <TableCell key={s.key} className="text-right tabular-nums">
-                      {money(s.of(p, base), currency)}
+                      {display(s, p, byDate.get(p.date) ?? 0)}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -283,15 +393,15 @@ function RangeChange({
   start,
   end,
   line,
-  showAmount,
+  show,
   currency,
 }: {
   points: TimelinePoint[]
   start: number
   end: number
   line: LineKey
-  /** Off in the gain view, where the amount is already the big number. */
-  showAmount: boolean
+  /** What isn't already the big number above it: the %, the amount, or both. */
+  show: 'pct' | 'amount' | 'both'
   currency: Currency
 }) {
   const valueOf = VALUE_OF[line]
@@ -314,12 +424,16 @@ function RangeChange({
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (
     <span className="flex items-center gap-1">
-      <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
-        <Arrow className="size-3.5" aria-hidden />
-        {formatPercent(change.returnPct, { signed: true })}
-      </span>
-      {showAmount && (
-        <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, currency)})</span>
+      {show !== 'amount' && (
+        <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
+          <Arrow className="size-3.5" aria-hidden />
+          {formatPercent(change.returnPct, { signed: true })}
+        </span>
+      )}
+      {show !== 'pct' && (
+        <span className="text-muted-foreground tabular-nums">
+          {show === 'both' ? `(${formatSignedMoney(change.gain, currency)})` : formatSignedMoney(change.gain, currency)}
+        </span>
       )}
     </span>
   )
