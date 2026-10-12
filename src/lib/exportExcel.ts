@@ -86,7 +86,7 @@ function transactionRows(transactions: Transaction[]): Cell[][] {
 }
 
 function assetRows(transactions: Transaction[], timeline: Timeline | null): Cell[][] {
-  const analytics = computeAnalytics(transactions)
+  const analytics = computeAnalytics(transactions, timeline?.splits)
   const thb = computeAssetPnl(analytics, timeline, '฿')
   const usd = computeAssetPnl(analytics, timeline, '$')
   // Held first, then by name.

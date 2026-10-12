@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { computeAnalytics, WIN_RATE_EXCLUDED, type TradeStats } from '@/lib/analytics'
 import { buildPortfolio, scorecard, type PeriodChange, type Portfolio, type Timeline } from '@/lib/benchmark'
-import { computeAssetPnl, sumAssets } from '@/lib/assets'
+import { computeAssetPnl, pnlBreakdown, sumAssets, type Breakdown } from '@/lib/assets'
 import { getUsdThbOverride, setUsdThbOverride, type Transaction } from '@/lib/db'
 import {
   formatDate,
@@ -37,10 +37,10 @@ export function Dashboard({
   /** ฿: what it's worth in baht, exchange-rate moves included. $: exact, straight from the confirmations. */
   currency: Currency
 }) {
-  const analytics = useMemo(() => computeAnalytics(transactions), [transactions])
+  const asTraded = useMemo(() => computeAnalytics(transactions), [transactions])
   // The database emits a new array on every write (many per sync); only
   // refetch prices when the trades themselves change.
-  const flowsKey = JSON.stringify(analytics.cashFlows)
+  const flowsKey = JSON.stringify(asTraded.cashFlows)
   const [usdThbOverride, setOverride] = useState(getUsdThbOverride)
   const key = `${flowsKey}|${usdThbOverride ?? ''}`
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -76,6 +76,12 @@ export function Dashboard({
     onTimeline?.(portfolio?.timeline ?? null)
   }, [portfolio, onTimeline])
 
+  // Once prices are in, recount units across any stock splits since they were bought.
+  const splits = portfolio?.timeline.splits
+  const analytics = useMemo(
+    () => (splits && Object.keys(splits).length ? computeAnalytics(transactions, splits) : asTraded),
+    [transactions, splits, asTraded],
+  )
   const usd = currency === '$'
   const assets = useMemo(
     () => computeAssetPnl(analytics, portfolio?.timeline ?? null, currency),
@@ -84,12 +90,13 @@ export function Dashboard({
   const realized = usd ? analytics.realizedPnlUsd : analytics.realizedPnlThb
   const unrealized = sumAssets(assets, (a) => a.unrealized)
   // The headline is the actual gain: value now, minus money put in, plus money taken out. It's what the
-  // chart's ทั้งหมด shows. Realized + unrealized is how the Dime! app counts it; the rest is what the
-  // app leaves out: in baht, the USD/THB move since buying (and buy fees); in USD, just the buy fees.
+  // chart's ทั้งหมด shows. Realized + unrealized is how the Dime! app counts it, from the average cost;
+  // the rest is the buy fees average cost leaves out and, in baht, the USD/THB move.
   const totalPnl = portfolio ? (usd ? portfolio.totalGainUsd : portfolio.totalGainThb) : null
-  const dimeStyle = unrealized == null ? null : realized + unrealized
-  // What Dime! leaves out of baht P&L: the exchange-rate move on what's held (less its buy fees).
-  const uncounted = totalPnl != null && dimeStyle != null ? totalPnl - dimeStyle : null
+  const breakdown =
+    totalPnl != null && unrealized != null
+      ? pnlBreakdown(totalPnl, realized, unrealized, -(usd ? analytics.buyFeesUsd : analytics.buyFeesThb), currency)
+      : null
   const { stats } = analytics
 
   return (
@@ -105,7 +112,7 @@ export function Dashboard({
         totalPnl={totalPnl}
         realized={realized}
         unrealized={unrealized}
-        uncounted={uncounted}
+        breakdown={breakdown}
         stats={stats}
         tradeCount={transactions.length}
         onChangeUsdThb={changeUsdThb}
@@ -149,6 +156,10 @@ export function Dashboard({
         </CardHeader>
         <CardContent>
           <AssetsTable assets={assets} loading={loading} currency={currency} />
+          <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+            คิดจากต้นทุนเฉลี่ยแบบแอป Dime! จึงยังไม่รวมค่าธรรมเนียมตอนซื้อ{usd ? '' : 'และผลจากค่าเงิน USD/THB'}{' '}
+            ซึ่งแสดงแยกไว้ในภาพรวมพอร์ต
+          </p>
         </CardContent>
       </Card>
 
@@ -173,7 +184,7 @@ function SummaryCard({
   totalPnl,
   realized,
   unrealized,
-  uncounted,
+  breakdown,
   stats,
   tradeCount,
   onChangeUsdThb,
@@ -185,7 +196,7 @@ function SummaryCard({
   totalPnl: number | null
   realized: number
   unrealized: number | null
-  uncounted: number | null
+  breakdown: Breakdown | null
   stats: TradeStats
   tradeCount: number
   onChangeUsdThb: (rate: number | null) => void
@@ -252,27 +263,38 @@ function SummaryCard({
             <SlipRow
               label="กำไร/ขาดทุนรวม"
               strong
-              value={totalPnl == null ? pending : signed(totalPnl)}
+              value={totalPnl == null ? pending : signed(breakdown?.total ?? totalPnl)}
               tone={totalPnl}
+              title="มูลค่าตอนนี้ บวกเงินที่ได้จากการขาย หักเงินที่ใช้ซื้อทั้งหมด เท่ากับยอดทั้งหมดในกราฟ"
             />
-            <SlipRow label="รับรู้แล้ว" indent value={signed(realized)} />
+            <SlipRow
+              label="รับรู้แล้ว"
+              indent
+              value={signed(breakdown?.realized ?? realized)}
+              title="จากหุ้นที่ขายแล้ว: ยอดรับสุทธิเทียบกับต้นทุนเฉลี่ย (ไม่รวมค่าธรรมเนียมตอนซื้อ)"
+            />
             <SlipRow
               label="ยังไม่รับรู้"
               indent
-              value={unrealized == null ? pending : signed(unrealized)}
+              value={unrealized == null ? pending : signed(breakdown?.unrealized ?? unrealized)}
               title="เหมือนในแอป Dime!: ราคาตอนนี้เทียบกับต้นทุนเฉลี่ย"
             />
-            {uncounted != null && Math.abs(uncounted) >= (usd ? 0.01 : 1) && (
+            {breakdown && breakdown.buyFees !== 0 && (
               <SlipRow
-                label={usd ? 'ค่าธรรมเนียมตอนซื้อ' : 'จากค่าเงิน USD/THB'}
+                label="ค่าธรรมเนียมตอนซื้อ"
+                note="ไม่อยู่ในต้นทุนเฉลี่ย"
+                indent
+                value={signed(breakdown.buyFees)}
+                title="ค่าคอมมิชชันและ VAT ตอนซื้อทุกรายการ ต้นทุนเฉลี่ยในแอป Dime! ไม่รวมส่วนนี้ จึงไม่อยู่ในกำไร/ขาดทุนสองบรรทัดบน"
+              />
+            )}
+            {breakdown && breakdown.fx !== 0 && (
+              <SlipRow
+                label="จากค่าเงิน USD/THB"
                 note="แอป Dime! ไม่นับ"
                 indent
-                value={signed(uncounted)}
-                title={
-                  usd
-                    ? 'ค่าคอมมิชชันและ VAT ตอนซื้อหุ้นที่ยังถืออยู่ แอป Dime! ไม่นับในกำไรที่ยังไม่รับรู้'
-                    : 'ค่าเงินบาทที่เปลี่ยนไปตั้งแต่ซื้อหุ้นที่ยังถืออยู่ หักค่าธรรมเนียมตอนซื้อ แอป Dime! ไม่นับส่วนนี้ในกำไรที่ยังไม่รับรู้'
-                }
+                value={signed(breakdown.fx)}
+                title="ค่าเงินบาทที่เปลี่ยนไประหว่างวันที่ซื้อกับวันที่ขาย (หรือวันนี้ สำหรับหุ้นที่ยังถืออยู่) แอป Dime! คิดกำไรเป็นดอลลาร์แล้วแปลงด้วยเรทปัจจุบัน จึงไม่นับส่วนนี้"
               />
             )}
             <SlipRow

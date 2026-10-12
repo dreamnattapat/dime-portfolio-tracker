@@ -12,9 +12,13 @@
  * Unlike the Python version, units are converted to today's split-adjusted
  * shares, so a holding that went through a split (which Dime! sends no email
  * for) is still valued correctly after it.
+ *
+ * The timeline opens with a zero point on the trading day before the first
+ * trade (nothing held, nothing invested), so the whole-history figures include
+ * the first day's move and add up to the total gain.
  */
 import { EPS, type CashFlow } from '@/lib/analytics'
-import { fetchPrices, PriceSeries, yahooSymbol } from '@/lib/prices'
+import { fetchPrices, PriceSeries, yahooSymbol, type Split } from '@/lib/prices'
 
 export const BENCHMARK_SYMBOL = 'SPY'
 const FX_SYMBOL = 'THB=X' // THB per 1 USD
@@ -59,6 +63,8 @@ export type Timeline = {
   approximated: string[]
   /** The most recent US trading day with a price, ISO date (it can be today's, still trading). */
   latestSession: string
+  /** Each security's stock splits, for counting units in today's shares (see analytics.ts). */
+  splits: Record<string, Split[]>
 }
 
 /** Holdings, SPY mirror and net invested on every trading day from the first trade to today. */
@@ -70,9 +76,19 @@ export function computeTimeline(
   today: string,
 ): Timeline {
   if (!flows.length) {
-    return { points: [], pointsUsd: [], holdings: [], usdThb: fx.latest, approximated: [], latestSession: '' }
+    return {
+      points: [],
+      pointsUsd: [],
+      holdings: [],
+      usdThb: fx.latest,
+      approximated: [],
+      latestSession: '',
+      splits: {},
+    }
   }
-  const days = [...spy.dates.filter((d) => d >= flows[0].date && d < today), today]
+  const first = flows[0].date
+  const days = [...spy.dates.filter((d) => d >= first && d < today), today]
+  const origin = spy.dates.findLast((d) => d < first) ?? dayBefore(first)
 
   // Units in today's split-adjusted shares, so they pair with adjusted closes.
   const units = new Map<string, number>()
@@ -82,8 +98,9 @@ export function computeTimeline(
   let cashUsd = 0
   let spyShares = 0
   let i = 0
-  const points: TimelinePoint[] = []
-  const pointsUsd: TimelinePoint[] = []
+  const zero = { date: origin, value: 0, spy: 0, invested: 0, bought: 0, sold: 0 }
+  const points: TimelinePoint[] = [zero]
+  const pointsUsd: TimelinePoint[] = [{ ...zero }]
   const holdings: Holding[] = []
 
   for (const day of days) {
@@ -94,7 +111,8 @@ export function computeTimeline(
     for (; i < flows.length && flows[i].date <= day; i++) {
       const f = flows[i]
       const factor = prices.get(f.security)?.splitFactorAfter(f.date) ?? 1
-      units.set(f.security, (units.get(f.security) ?? 0) + f.units * factor)
+      // Selling more than is on record (bought before the Gmail history) leaves none, not a short position.
+      units.set(f.security, Math.max(0, (units.get(f.security) ?? 0) + f.units * factor))
       if (f.unitPrice) lastTradePrice.set(f.security, f.unitPrice / factor)
       cashThb += f.thb
       cashUsd += f.usd
@@ -109,7 +127,7 @@ export function computeTimeline(
     const usdThb = isToday ? fx.latest : fx.on(day)
     let holdingsUsd = 0
     for (const [security, held] of units) {
-      if (Math.abs(held) < EPS) continue
+      if (held < EPS) continue
       const series = prices.get(security)
       let price: number
       let approx = false
@@ -117,9 +135,11 @@ export function computeTimeline(
         if (!series) throw new RangeError(`no history for ${security}`)
         price = isToday ? series.latest : series.on(day)
       } catch {
+        // No close yet (e.g. bought on its first trading day) or no history at all.
         price = lastTradePrice.get(security) ?? 0
-        approximated.add(security)
         approx = true
+        // Flagged only if it's still unpriced today, where it shows.
+        if (isToday) approximated.add(security)
       }
       holdingsUsd += held * price
       if (isToday) {
@@ -146,7 +166,14 @@ export function computeTimeline(
     usdThb: fx.latest,
     approximated: [...approximated].sort(),
     latestSession: spy.dates.at(-1)!,
+    splits: Object.fromEntries(
+      [...prices].filter(([, series]) => series?.splits.length).map(([s, series]) => [s, series!.splits]),
+    ),
   }
+}
+
+function dayBefore(iso: string): string {
+  return new Date(Date.parse(`${iso}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
 }
 
 /** ISO date `months` months before `iso`, clamped to the month's last day (31 Mar -> 28/29 Feb). */
@@ -192,6 +219,18 @@ export function dayChange(points: TimelinePoint[], latestSession: string): Perio
 }
 
 /**
+ * One day's growth factor: (value + sells) / (previous value + buys), buys at
+ * the open and sells at the close. A day that starts fully in cash has no
+ * return (1). So does a day the S&P 500 mirror starts short: it sells the same
+ * USD amount you do, which can be more than it holds after you sell a big
+ * winner, and a return on a negative value means nothing.
+ */
+function dayGrowth(prev: number, value: number, p: TimelinePoint): number {
+  const base = prev + p.bought
+  return prev < 0 || base <= 1 ? 1 : (value + p.sold) / base
+}
+
+/**
  * Change from points[start] to points[end] (default: the last). Uses the
  * time-weighted return, as brokers do, so adding money doesn't count as
  * growth: each day's return is end value plus sells over start value plus buys
@@ -212,8 +251,7 @@ export function changeBetween(
     const p = points[j]
     const value = valueOf(p)
     gain += value - prev - p.bought + p.sold
-    const base = prev + p.bought
-    if (base > 1) growth *= (value + p.sold) / base // skip days fully in cash
+    growth *= dayGrowth(prev, value, p)
   }
   return { gain, returnPct: (growth - 1) * 100 }
 }
@@ -232,10 +270,8 @@ export function cumulativeReturns(
   let growth = 1
   out[start] = 0
   for (let j = start + 1; j < points.length; j++) {
-    const prev = valueOf(points[j - 1])
     const p = points[j]
-    const base = prev + p.bought
-    if (base > 1) growth *= (valueOf(p) + p.sold) / base // skip days fully in cash
+    growth *= dayGrowth(valueOf(points[j - 1]), valueOf(p), p)
     out[j] = (growth - 1) * 100
   }
   return out

@@ -4,7 +4,9 @@
  * Unrealized P&L follows Dime!: (price - average cost) x units in USD, with
  * the average cost excluding fees; in baht, converted at today's USD/THB
  * rate. So it's the stock's own move; a change in the exchange rate since you
- * bought isn't counted as profit. Realized P&L comes from FIFO (analytics.ts).
+ * bought isn't counted as profit. Realized P&L uses the same average cost
+ * (analytics.ts), so a row's total is the stock's own result before buy fees
+ * (those, and the USD/THB move, are shown separately in the summary).
  */
 import type { Analytics } from '@/lib/analytics'
 import type { Timeline } from '@/lib/benchmark'
@@ -77,4 +79,27 @@ export function sumAssets(rows: AssetPnl[], pick: (row: AssetPnl) => number | nu
     total += value
   }
   return total
+}
+
+export type Breakdown = { total: number; realized: number; unrealized: number; buyFees: number; fx: number }
+
+/**
+ * The total gain split into the summary's rows, each rounded as it's shown
+ * (whole baht, or cents) so the rows add up to the total on screen too. The
+ * USD/THB part takes the rounding; in USD there's none, so the buy fees do.
+ */
+export function pnlBreakdown(
+  total: number,
+  realized: number,
+  unrealized: number,
+  buyFees: number,
+  currency: Currency,
+): Breakdown {
+  const scale = currency === '$' ? 100 : 1
+  const round = (value: number) => Math.round(value * scale) / scale
+  const shown = { total: round(total), realized: round(realized), unrealized: round(unrealized) }
+  const rest = round(shown.total - shown.realized - shown.unrealized)
+  if (currency === '$') return { ...shown, buyFees: rest, fx: 0 }
+  const fees = round(buyFees)
+  return { ...shown, buyFees: fees, fx: round(rest - fees) }
 }

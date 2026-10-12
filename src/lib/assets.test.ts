@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Analytics } from './analytics'
-import { computeAssetPnl, sumAssets } from './assets'
+import { computeAssetPnl, pnlBreakdown, sumAssets } from './assets'
 import type { Timeline } from './benchmark'
 
 const analytics = {
@@ -9,10 +9,8 @@ const analytics = {
     { security: 'SGOV', boughtThb: 230_000, boughtUsd: 6_900, realizedPnlThb: -687, realizedPnlUsd: -20 },
     { security: 'GOOG', boughtThb: 20_000, boughtUsd: 600, realizedPnlThb: 16_331, realizedPnlUsd: 509 },
   ],
-  openPositions: [
-    { security: 'SGOV', units: 66.8120464, costBasisThb: 221_000, avgCostBasisUsd: 66.8120464 * 100.6386 },
-  ],
-} as Analytics
+  openPositions: [{ security: 'SGOV', units: 66.8120464, avgCostBasisUsd: 66.8120464 * 100.6386 }],
+} as unknown as Analytics
 
 const timeline = {
   holdings: [{ security: 'SGOV', units: 66.8120464, priceUsd: 100.52, valueThb: 0, approximated: false }],
@@ -46,5 +44,19 @@ describe('computeAssetPnl', () => {
     expect(rows[0].unrealized).toBeNull()
     expect(sumAssets(rows, (r) => r.unrealized)).toBeNull()
     expect(sumAssets(rows, (r) => r.realized)).toBeCloseTo(15_644)
+  })
+})
+
+describe('pnlBreakdown', () => {
+  it('rounds each row as shown and lets the USD/THB part absorb the rounding', () => {
+    // 100.4 + 200.4 - 10.4 = 290.4, but shown whole: 100 + 200 - 10 = 290 of a 301 total.
+    const rows = pnlBreakdown(300.6, 100.4, 200.4, -10.4, '฿')
+    expect(rows).toEqual({ total: 301, realized: 100, unrealized: 200, buyFees: -10, fx: 11 })
+    expect(rows.realized + rows.unrealized + rows.buyFees + rows.fx).toBe(rows.total)
+  })
+
+  it('in USD, the rest is the buy fees', () => {
+    const rows = pnlBreakdown(90.005, 50.004, 41.003, -1.2, '$')
+    expect(rows).toEqual({ total: 90.01, realized: 50, unrealized: 41, buyFees: -0.99, fx: 0 })
   })
 })

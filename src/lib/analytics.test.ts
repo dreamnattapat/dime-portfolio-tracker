@@ -5,7 +5,7 @@ import type { Transaction } from './db'
 
 let nextOrderId = 1
 
-/** A trade with no SEC/TAF fees unless `fees` is set, so most tests check the FIFO maths alone. */
+/** A trade with no SEC/TAF fees unless `fees` is set, so most tests check the cost maths alone. */
 function tx(
   date: string,
   type: 'Buy' | 'Sell',
@@ -52,30 +52,67 @@ function tx(
 }
 
 describe('computeAnalytics', () => {
-  it('matches sells against the oldest lots first', () => {
+  it('costs a sell at the average cost, as the Dime! app does', () => {
     const result = computeAnalytics([
       tx('2026-01-02', 'Buy', 'AAPL', 10, 1000), // 100/unit
-      tx('2026-02-02', 'Buy', 'AAPL', 10, 2000), // 200/unit
-      tx('2026-03-02', 'Sell', 'AAPL', 15, 3000), // cost 10*100 + 5*200 = 2000
+      tx('2026-02-02', 'Buy', 'AAPL', 10, 2000), // 200/unit: average 150
+      tx('2026-03-02', 'Sell', 'AAPL', 15, 3000), // cost 15 x 150 = 2250
     ])
     expect(result.trades).toHaveLength(1)
-    expect(result.trades[0].costThb).toBeCloseTo(2000)
-    expect(result.trades[0].pnlThb).toBeCloseTo(1000)
-    expect(result.realizedPnlThb).toBeCloseTo(1000)
-    expect(result.openPositions).toEqual([
-      // FIFO keeps the 200/unit lot; Dime!'s average cost keeps 5 units at the 150/unit average.
-      { security: 'AAPL', units: 5, costBasisThb: 1000, avgCostBasisUsd: expect.closeTo(750 / 33) },
-    ])
+    expect(result.trades[0].pnlThb).toBeCloseTo(750)
+    expect(result.trades[0].pnlUsd).toBeCloseTo(750 / 33)
+    expect(result.realizedPnlThb).toBeCloseTo(750)
+    // Selling doesn't change the average: 5 units left at 150.
+    expect(result.openPositions).toEqual([{ security: 'AAPL', units: 5, avgCostBasisUsd: expect.closeTo(750 / 33) }])
     expect(result.assets).toEqual([
       {
         security: 'AAPL',
         boughtThb: 3000,
         boughtUsd: expect.closeTo(3000 / 33),
-        realizedPnlThb: expect.closeTo(1000),
-        realizedPnlUsd: expect.closeTo(1000 / 33),
+        realizedPnlThb: expect.closeTo(750),
+        realizedPnlUsd: expect.closeTo(750 / 33),
       },
     ])
-    expect(result.realizedPnlUsd).toBeCloseTo(1000 / 33)
+  })
+
+  it('resets the average after selling out', () => {
+    const result = computeAnalytics([
+      tx('2026-01-02', 'Buy', 'AAPL', 10, 1000),
+      tx('2026-02-02', 'Sell', 'AAPL', 10, 1200),
+      tx('2026-03-02', 'Buy', 'AAPL', 10, 3000),
+      tx('2026-04-02', 'Sell', 'AAPL', 5, 2000), // cost 5 x 300, not mixed with the first 100/unit
+    ])
+    expect(result.trades.map((t) => t.pnlThb)).toEqual([expect.closeTo(500), expect.closeTo(200)])
+    expect(result.openPositions[0]).toMatchObject({ units: 5, avgCostBasisUsd: expect.closeTo(1500 / 33) })
+  })
+
+  it('keeps buy fees out of the average and adds them up separately', () => {
+    const buy = {
+      ...tx('2026-01-02', 'Buy', 'AAPL', 10, 1000),
+      unitPrice: 3,
+      grossAmount: 30,
+      totalAmount: 30.3,
+      grossAmountThb: 990,
+      totalAmountThb: 1000,
+    } as Transaction
+    const result = computeAnalytics([buy])
+    expect(result.openPositions[0].avgCostBasisUsd).toBeCloseTo(30)
+    expect(result.buyFeesUsd).toBeCloseTo(0.3)
+    expect(result.buyFeesThb).toBeCloseTo(10)
+  })
+
+  it("counts units in today's shares after a split, like the Dime! app", () => {
+    const splits = { NVDA: [['2026-02-16', 4]] as [string, number][] }
+    const result = computeAnalytics(
+      [
+        tx('2026-01-02', 'Buy', 'NVDA', 2, 26_400), // 2 at $400 = 8 of today's shares at $100
+        tx('2026-03-02', 'Buy', 'NVDA', 4, 13_200), // 4 at $100
+        tx('2026-04-01', 'Sell', 'NVDA', 6, 23_760), // 6 of 12 at $120
+      ],
+      splits,
+    )
+    expect(result.openPositions).toEqual([{ security: 'NVDA', units: 6, avgCostBasisUsd: expect.closeTo(600) }])
+    expect(result.trades[0]).toMatchObject({ units: 6, basisComplete: true, pnlUsd: expect.closeTo(120) })
   })
 
   it('sorts by date, not by the order rows are stored in', () => {
@@ -91,15 +128,19 @@ describe('computeAnalytics', () => {
       tx('2026-01-02', 'Buy', 'AAPL', 10, 1000, true),
       tx('2026-03-02', 'Sell', 'AAPL', 10, 1500, true), // 45.45 USD: SEC 0.01 + TAF 0.01 = 0.02 USD = 0.66 THB
     ])
-    expect(result.trades[0].proceedsThb).toBeCloseTo(1500 - 0.66)
-    expect(result.trades[0].pnlThb).toBeCloseTo(500 - 0.66)
+    expect(result.trades[0].pnlUsd).toBeCloseTo(500 / 33 - 0.02)
+    expect(result.trades[0].pnlThb).toBeCloseTo(result.trades[0].pnlUsd * 33)
     expect(result.cashFlows[1].usd).toBeCloseTo(1500 / 33 - 0.02, 2)
   })
 
-  it('flags a sell with no matching buy on record', () => {
-    const result = computeAnalytics([tx('2026-01-02', 'Sell', 'MSFT', 1, 500)])
-    expect(result.trades[0].basisComplete).toBe(false)
+  it('counts a sell with no buy on record as all profit, and flags it', () => {
+    const result = computeAnalytics([
+      tx('2026-01-02', 'Buy', 'MSFT', 1, 300),
+      tx('2026-02-02', 'Sell', 'MSFT', 3, 1500), // 2 of the 3 units have no buy on record
+    ])
+    expect(result.trades[0]).toMatchObject({ basisComplete: false, pnlThb: expect.closeTo(1200) })
     expect(result.incompleteBasisTrades).toBe(1)
+    expect(result.openPositions).toEqual([])
   })
 
   it('leaves cash-parking ETFs out of the win rate but not the P&L', () => {
@@ -116,25 +157,14 @@ describe('computeAnalytics', () => {
 })
 
 describe('computeTradeStats', () => {
-  const trade = (pnlThb: number) => ({ pnlThb, win: pnlThb > 0 }) as ClosedTrade
+  const trade = (pnlUsd: number) => ({ pnlUsd, win: pnlUsd > 0 }) as ClosedTrade
 
-  it('shows how a high win rate can still lose money', () => {
-    // 4 small wins, 1 big loss: 80% win rate, but a net loss.
+  it('counts the share of trades that made money', () => {
     const stats = computeTradeStats([trade(100), trade(100), trade(100), trade(100), trade(-1000)])
-    expect(stats.winRatePct).toBe(80)
-    expect(stats.avgWinThb).toBe(100)
-    expect(stats.avgLossThb).toBe(1000)
-    expect(stats.payoffRatio).toBeCloseTo(0.1)
-    expect(stats.breakEvenWinRatePct).toBeCloseTo(90.91, 2)
-    expect(stats.profitFactor).toBeCloseTo(0.4)
-    expect(stats.expectancyThb).toBeCloseTo(-120)
+    expect(stats).toEqual({ rated: 5, wins: 4, losses: 1, winRatePct: 80 })
   })
 
-  it('returns nulls when there is nothing to compare', () => {
-    const stats = computeTradeStats([trade(100)])
-    expect(stats.avgLossThb).toBeNull()
-    expect(stats.payoffRatio).toBeNull()
-    expect(stats.breakEvenWinRatePct).toBeNull()
-    expect(stats.profitFactor).toBeNull()
+  it('has no win rate without trades', () => {
+    expect(computeTradeStats([]).winRatePct).toBeNull()
   })
 })

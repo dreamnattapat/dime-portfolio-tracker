@@ -41,36 +41,72 @@ describe('computeTimeline', () => {
     const prices = new Map([['AAPL', series('AAPL', [10, 12, 12, 15], 20)]])
     // Buy 10 AAPL for $100 on day 1.
     const { points } = computeTimeline([flow('2026-01-05', 'AAPL', 10, 100)], spy, fx, prices, '2026-01-09')
-    expect(points.map((p) => p.date)).toEqual([...days, '2026-01-09'])
-    expect(points.map((p) => p.value)).toEqual([3000, 3600, 3600, 4500, 6000])
+    // Opens with nothing, the day before the first trade.
+    expect(points.map((p) => p.date)).toEqual(['2026-01-04', ...days, '2026-01-09'])
+    expect(points.map((p) => p.value)).toEqual([0, 3000, 3600, 3600, 4500, 6000])
     // $100 bought 1 SPY share.
-    expect(points.map((p) => p.spy)).toEqual([3000, 3000, 3300, 3300, 3600])
-    expect(points[0].invested).toBe(3000)
-    expect(points[0].bought).toBe(3000)
+    expect(points.map((p) => p.spy)).toEqual([0, 3000, 3000, 3300, 3300, 3600])
+    expect(points[0]).toMatchObject({ invested: 0, bought: 0 })
+    expect(points[1].invested).toBe(3000)
+    expect(points[1].bought).toBe(3000)
   })
 
   it('also tracks everything in USD, without the exchange rate', () => {
     const fxMoves = series('THB=X', [30, 31, 32, 33], 34)
     const prices = new Map([['AAPL', series('AAPL', [10, 12, 12, 15], 20)]])
     const { pointsUsd } = computeTimeline([flow('2026-01-05', 'AAPL', 10, 100)], spy, fxMoves, prices, '2026-01-09')
-    expect(pointsUsd.map((p) => p.value)).toEqual([100, 120, 120, 150, 200])
-    expect(pointsUsd.map((p) => p.spy)).toEqual([100, 100, 110, 110, 120])
-    expect(pointsUsd[0]).toMatchObject({ invested: 100, bought: 100, sold: 0 })
-    // The S&P 500 mirror's USD return is SPY's own: 100 -> 120.
-    expect(changeBetween(pointsUsd, 0, 4, (p) => p.spy)!.returnPct).toBeCloseTo(20)
+    expect(pointsUsd.map((p) => p.value)).toEqual([0, 100, 120, 120, 150, 200])
+    expect(pointsUsd.map((p) => p.spy)).toEqual([0, 100, 100, 110, 110, 120])
+    expect(pointsUsd[1]).toMatchObject({ invested: 100, bought: 100, sold: 0 })
+    // The S&P 500 mirror's USD return is SPY's own: 100 -> 120 (bought at the close).
+    expect(changeBetween(pointsUsd, 0, 5, (p) => p.spy)!.returnPct).toBeCloseTo(20)
+    // Yours includes the first day: bought at $10, valued at the $10 close, then 20.
+    expect(changeBetween(pointsUsd, 0)!).toEqual({ gain: 100, returnPct: expect.closeTo(100) })
   })
 
   it('keeps valuing a holding correctly after a split', () => {
     // 2:1 split on day 3; Yahoo's history is adjusted, so day 1-2 closes are halved.
     const prices = new Map([['NVDA', series('NVDA', [50, 50, 50, 50], 50, [['2026-01-07', 2]])]])
     const { points } = computeTimeline([flow('2026-01-05', 'NVDA', 1, 100)], spy, fx, prices, '2026-01-09')
-    expect(points.map((p) => p.value)).toEqual([3000, 3000, 3000, 3000, 3000])
+    expect(points.map((p) => p.value)).toEqual([0, 3000, 3000, 3000, 3000, 3000])
   })
 
   it("lists today's holdings in post-split shares", () => {
     const prices = new Map([['NVDA', series('NVDA', [50, 50, 50, 50], 60, [['2026-01-07', 2]])]])
     const { holdings } = computeTimeline([flow('2026-01-05', 'NVDA', 1, 100)], spy, fx, prices, '2026-01-09')
     expect(holdings).toEqual([{ security: 'NVDA', units: 2, priceUsd: 60, valueThb: 3600, approximated: false }])
+  })
+
+  it('never holds fewer than zero shares, even after selling more than is on record', () => {
+    const prices = new Map([['MSFT', series('MSFT', [10, 10, 10, 10], 10)]])
+    const sell = { ...flow('2026-01-05', 'MSFT', -5, -50) } // 5 shares bought before the Gmail history
+    const { points, holdings } = computeTimeline([sell], spy, fx, prices, '2026-01-09')
+    expect(points.map((p) => p.value)).toEqual([0, 0, 0, 0, 0, 0])
+    expect(holdings).toEqual([])
+    // The sale's proceeds are all gain, as the realized P&L counts them.
+    expect(points.at(-1)!.value - points.at(-1)!.invested).toBe(1500)
+  })
+
+  it('only flags a ticker as unpriced if it still is today', () => {
+    // EEE's history starts on day 2 (e.g. a renamed ticker): day 1 uses the trade price.
+    const late = new PriceSeries(
+      'EEE',
+      [
+        ['2026-01-06', 12],
+        ['2026-01-07', 12],
+        ['2026-01-08', 12],
+      ],
+      13,
+    )
+    const { points, approximated } = computeTimeline(
+      [flow('2026-01-05', 'EEE', 10, 100)],
+      spy,
+      fx,
+      new Map([['EEE', late]]),
+      '2026-01-09',
+    )
+    expect(points.map((p) => p.value)).toEqual([0, 3000, 3600, 3600, 3600, 3900])
+    expect(approximated).toEqual([])
   })
 
   it('falls back to the last trade price for a ticker without history', () => {
@@ -123,6 +159,19 @@ describe('periodChange', () => {
     ]
     expect(changeBetween(points, 0, 1, (p) => p.spy)).toEqual({ gain: 200, returnPct: expect.closeTo(10) })
     expect(changeBetween(points, 0, 1)).toEqual({ gain: 100, returnPct: expect.closeTo(5) })
+  })
+
+  it('skips the days the S&P 500 mirror is short instead of compounding a return on a negative value', () => {
+    // You sold a big winner for more than the mirror held: it's short 100 overnight, then a buy covers it.
+    const points = [
+      { ...point('2026-01-09', 0), spy: 500 },
+      { ...point('2026-01-12', 0, 0, 600), spy: -100 },
+      { ...point('2026-01-13', 0, 110), spy: 9 }, // -100 x 1.01 + 110 bought: not a -10% day
+      { ...point('2026-01-14', 0), spy: 9.9 },
+    ]
+    const change = changeBetween(points, 0, 3, (p) => p.spy)!
+    expect(change.returnPct).toBeCloseTo(10) // 0% (sold at the close), skipped, +10%
+    expect(change.gain).toBeCloseTo(9.9 - 500 + 600 - 110)
   })
 
   it('returns null when the history is shorter than the period', () => {

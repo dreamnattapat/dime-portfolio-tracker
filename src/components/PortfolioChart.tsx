@@ -185,12 +185,8 @@ export function PortfolioChart({
   // A range longer than the history shows all of it.
   const start = Math.max(0, rangeStart(points, months ?? null, latestSession))
   // Gains are counted from the start of the range. For the whole history that's
-  // before the first trade (nothing in, nothing gained), so the first day's
-  // gain counts too and ทั้งหมด matches the summary's total gain exactly.
-  const base = useMemo(
-    () => (start === 0 && points[0] ? { ...points[0], value: 0, spy: 0, invested: 0 } : points[start]),
-    [points, start],
-  )
+  // the zero point before the first trade, so ทั้งหมด matches the summary's total gain.
+  const base = points[start]
   const cum = useMemo<Cumulative>(
     () => ({ you: cumulativeReturns(points, start), spy: cumulativeReturns(points, start, (p) => p.spy) }),
     [points, start],
@@ -259,8 +255,10 @@ export function PortfolioChart({
   // The readout covers the selected range, up to the replayed, hovered or latest day.
   const end = replay ?? hovered ?? points.length - 1
   const shown = points[end]
+  // Month-end rows, leaving out the zero point before the first trade.
   const monthEnds = points.filter(
-    (p, i) => i >= start && (i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7)),
+    (p, i) =>
+      i >= Math.max(start, 1) && (i === points.length - 1 || points[i + 1].date.slice(0, 7) !== p.date.slice(0, 7)),
   )
   const money = view === 'gain' ? formatSignedMoney : formatMoney
   /** One line's value for the readout and table: % in the % view, money otherwise. */
@@ -414,10 +412,8 @@ function RangeChange({
       </span>
     )
   }
-  const between = changeBetween(points, start, end, valueOf)
-  if (!between) return <span className="text-muted-foreground">—</span>
-  // Over the whole history, also count the first day's gain (from before the first trade), as the summary does.
-  const change = start === 0 ? { ...between, gain: between.gain + valueOf(points[0]) - points[0].invested } : between
+  const change = changeBetween(points, start, end, valueOf)
+  if (!change) return <span className="text-muted-foreground">—</span>
   const up = change.returnPct >= 0
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (

@@ -95,20 +95,21 @@ export function saveHideAmounts(hide: boolean): void {
   }
 }
 
-// Whether the dashboard shows baht or USD (the ฿ / $ switch). Per device.
+// Whether the dashboard shows USD or baht (the ฿ / $ switch). Per device.
+// USD is the default: those figures come straight from the confirmations.
 const CURRENCY_KEY = 'currency'
 
 export function getCurrency(): '฿' | '$' {
   try {
-    return localStorage.getItem(CURRENCY_KEY) === 'USD' ? '$' : '฿'
+    return localStorage.getItem(CURRENCY_KEY) === 'THB' ? '฿' : '$'
   } catch {
-    return '฿'
+    return '$'
   }
 }
 
 export function saveCurrency(currency: '฿' | '$'): void {
   try {
-    if (currency === '$') localStorage.setItem(CURRENCY_KEY, 'USD')
+    if (currency === '฿') localStorage.setItem(CURRENCY_KEY, 'THB')
     else localStorage.removeItem(CURRENCY_KEY)
   } catch {
     // Storage blocked: the choice lasts until the page is reloaded.

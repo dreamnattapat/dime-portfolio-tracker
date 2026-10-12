@@ -19,13 +19,13 @@ export class PriceSeries {
   /** When `latest` was quoted, ms since epoch, if Yahoo said. */
   readonly latestAt: number | null
   /** [ISO date, ratio], e.g. 10 for a 10:1 split. */
-  private readonly splits: [string, number][]
+  readonly splits: Split[]
 
   constructor(
     symbol: string,
     closes: [string, number][],
     latest: number,
-    splits: [string, number][] = [],
+    splits: Split[] = [],
     latestAt: number | null = null,
   ) {
     this.symbol = symbol
@@ -70,8 +70,16 @@ export class PriceSeries {
    * held on `day` is this many shares in today's terms (product of later splits).
    */
   splitFactorAfter(day: string): number {
-    return this.splits.reduce((factor, [date, ratio]) => (date > day ? factor * ratio : factor), 1)
+    return splitFactorAfter(this.splits, day)
   }
+}
+
+/** A stock split: [ISO date it takes effect, ratio], e.g. 10 for a 10:1 split. */
+export type Split = [string, number]
+
+/** How many of today's shares one share held on `day` became: the product of the splits after it. */
+export function splitFactorAfter(splits: Split[] | undefined, day: string): number {
+  return (splits ?? []).reduce((factor, [date, ratio]) => (date > day ? factor * ratio : factor), 1)
 }
 
 /** Dime! writes share classes with a dot (BRK.B); Yahoo uses a dash. */
@@ -115,7 +123,7 @@ export function parseChart(symbol: string, data: ChartResponse): PriceSeries {
   if (!closes.length) throw new Error(`No closing prices for ${symbol}`)
   const splits = Object.values(result.events?.splits ?? {})
     .filter((s) => s.denominator)
-    .map((s): [string, number] => [localDate(s.date, offset), s.numerator / s.denominator])
+    .map((s): Split => [localDate(s.date, offset), s.numerator / s.denominator])
   const { regularMarketPrice, regularMarketTime } = result.meta
   return new PriceSeries(
     symbol,

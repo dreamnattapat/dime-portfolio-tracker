@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowLeft, Eye, EyeOff, FileSpreadsheet, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Dashboard } from '@/components/Dashboard'
 import { BirthdateStep, ConnectStep, DataPath, Stepper, SyncStatus } from '@/components/Onboarding'
@@ -48,9 +48,17 @@ export default function App() {
   // The ฿ / $ switch: USD figures are exact; baht ones include exchange-rate moves.
   const [currency, setCurrency] = useState<Currency>(getCurrency)
 
+  // Switching to baht shows a short note that baht figures depend on the exchange rate.
+  const [bahtNote, setBahtNote] = useState(false)
+  const bahtNoteTimer = useRef<number | null>(null)
+
   function chooseCurrency(next: Currency) {
     saveCurrency(next)
     setCurrency(next)
+    if (bahtNoteTimer.current != null) window.clearTimeout(bahtNoteTimer.current)
+    const showNote = next === '฿' && currency !== '฿'
+    setBahtNote(showNote)
+    if (showNote) bahtNoteTimer.current = window.setTimeout(() => setBahtNote(false), 6000)
   }
 
   // The latest prices, from the dashboard, so the Excel export includes today's values.
@@ -286,25 +294,43 @@ export default function App() {
                 >
                   {hideAmounts ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
                 </button>
-                <div
-                  className="bg-card ml-1 flex rounded-full p-0.5 text-sm shadow-[0_1px_2px_rgb(120_60_20/0.08)]"
-                  role="group"
-                  aria-label="สกุลเงิน"
-                >
-                  {(['฿', '$'] as const).map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => chooseCurrency(c)}
-                      aria-pressed={currency === c}
-                      title={c === '฿' ? 'แสดงเป็นเงินบาท' : 'แสดงเป็นดอลลาร์ (ตรงกับยอด USD ในแอป Dime!)'}
-                      className={`min-w-8 rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
-                        currency === c ? 'bg-brand text-white' : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                <div className="relative ml-1">
+                  <div
+                    className="bg-card flex rounded-full p-0.5 text-sm shadow-[0_1px_2px_rgb(120_60_20/0.08)]"
+                    role="group"
+                    aria-label="สกุลเงิน"
+                  >
+                    {(['฿', '$'] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => chooseCurrency(c)}
+                        aria-pressed={currency === c}
+                        title={c === '฿' ? 'แสดงเป็นเงินบาท' : 'แสดงเป็นดอลลาร์ (ตรงกับยอด USD ในแอป Dime!)'}
+                        className={`min-w-8 rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
+                          currency === c ? 'bg-brand text-white' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  {bahtNote && (
+                    <div
+                      role="status"
+                      className="bg-foreground text-background animate-in fade-in slide-in-from-top-1 absolute top-full right-0 z-20 mt-2 w-60 rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-lg"
                     >
-                      {c}
-                    </button>
-                  ))}
+                      <span className="bg-foreground absolute -top-1 right-11 size-2.5 rotate-45" aria-hidden />
+                      ยอดเงินบาทอาจคลาดเคลื่อนเล็กน้อยตามเรทแลกเงิน USD/THB ที่ใช้ ส่วนยอด $ ตรงกับแอป Dime!
+                      <button
+                        type="button"
+                        className="mt-1 block font-semibold underline-offset-2 hover:underline"
+                        onClick={() => setBahtNote(false)}
+                      >
+                        เข้าใจแล้ว
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               {lastSynced && <p className="text-muted-foreground text-sm">ซิงก์ล่าสุด {formatDateTime(lastSynced)}</p>}
