@@ -13,13 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import {
-  changeBetween,
-  cumulativeReturns,
-  rangeStart,
-  scorecard,
-  type TimelinePoint,
-} from '@/lib/benchmark'
+import { changeBetween, cumulativeReturns, rangeStart, scorecard, type TimelinePoint } from '@/lib/benchmark'
 import {
   formatCompactMoney,
   formatDate,
@@ -190,7 +184,13 @@ export function PortfolioChart({
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.
   const start = Math.max(0, rangeStart(points, months ?? null, latestSession))
-  const base = points[start]
+  // Gains are counted from the start of the range. For the whole history that's
+  // before the first trade (nothing in, nothing gained), so the first day's
+  // gain counts too and ทั้งหมด matches the summary's total gain exactly.
+  const base = useMemo(
+    () => (start === 0 && points[0] ? { ...points[0], value: 0, spy: 0, invested: 0 } : points[start]),
+    [points, start],
+  )
   const cum = useMemo<Cumulative>(
     () => ({ you: cumulativeReturns(points, start), spy: cumulativeReturns(points, start, (p) => p.spy) }),
     [points, start],
@@ -414,8 +414,10 @@ function RangeChange({
       </span>
     )
   }
-  const change = changeBetween(points, start, end, valueOf)
-  if (!change) return <span className="text-muted-foreground">—</span>
+  const between = changeBetween(points, start, end, valueOf)
+  if (!between) return <span className="text-muted-foreground">—</span>
+  // Over the whole history, also count the first day's gain (from before the first trade), as the summary does.
+  const change = start === 0 ? { ...between, gain: between.gain + valueOf(points[0]) - points[0].invested } : between
   const up = change.returnPct >= 0
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (

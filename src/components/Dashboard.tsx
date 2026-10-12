@@ -83,9 +83,13 @@ export function Dashboard({
   )
   const realized = usd ? analytics.realizedPnlUsd : analytics.realizedPnlThb
   const unrealized = sumAssets(assets, (a) => a.unrealized)
-  const totalPnl = unrealized == null ? null : realized + unrealized
+  // The headline is the actual gain: value now, minus money put in, plus money taken out. It's what the
+  // chart's ทั้งหมด shows. Realized + unrealized is how the Dime! app counts it; the rest is what the
+  // app leaves out: in baht, the USD/THB move since buying (and buy fees); in USD, just the buy fees.
+  const totalPnl = portfolio ? (usd ? portfolio.totalGainUsd : portfolio.totalGainThb) : null
+  const dimeStyle = unrealized == null ? null : realized + unrealized
   // What Dime! leaves out of baht P&L: the exchange-rate move on what's held (less its buy fees).
-  const uncounted = !usd && portfolio && totalPnl != null ? portfolio.totalGainThb - totalPnl : null
+  const uncounted = totalPnl != null && dimeStyle != null ? totalPnl - dimeStyle : null
   const { stats } = analytics
 
   return (
@@ -256,12 +260,21 @@ function SummaryCard({
               label="ยังไม่รับรู้"
               indent
               value={unrealized == null ? pending : signed(unrealized)}
-              title={
-                uncounted != null && Math.abs(uncounted) >= 1
-                  ? `เหมือนในแอป Dime!: ราคาเทียบกับต้นทุนเฉลี่ย ไม่รวม ${signed(uncounted)} จากการเปลี่ยนแปลงของค่าเงิน USD/THB และค่าธรรมเนียมการซื้อ`
-                  : undefined
-              }
+              title="เหมือนในแอป Dime!: ราคาตอนนี้เทียบกับต้นทุนเฉลี่ย"
             />
+            {uncounted != null && Math.abs(uncounted) >= (usd ? 0.01 : 1) && (
+              <SlipRow
+                label={usd ? 'ค่าธรรมเนียมตอนซื้อ' : 'จากค่าเงิน USD/THB'}
+                note="แอป Dime! ไม่นับ"
+                indent
+                value={signed(uncounted)}
+                title={
+                  usd
+                    ? 'ค่าคอมมิชชันและ VAT ตอนซื้อหุ้นที่ยังถืออยู่ แอป Dime! ไม่นับในกำไรที่ยังไม่รับรู้'
+                    : 'ค่าเงินบาทที่เปลี่ยนไปตั้งแต่ซื้อหุ้นที่ยังถืออยู่ หักค่าธรรมเนียมตอนซื้อ แอป Dime! ไม่นับส่วนนี้ในกำไรที่ยังไม่รับรู้'
+                }
+              />
+            )}
             <SlipRow
               label="อัตราชนะ"
               strong
@@ -386,6 +399,7 @@ function SlipRow({
   label,
   value,
   title,
+  note,
   strong = false,
   indent = false,
   tone,
@@ -393,6 +407,8 @@ function SlipRow({
   label: string
   value: string
   title?: string
+  /** A small second line under the label. */
+  note?: string
   strong?: boolean
   indent?: boolean
   /** Colors the value by sign. */
@@ -401,7 +417,10 @@ function SlipRow({
   const color = tone == null || tone === 0 ? '' : tone > 0 ? 'text-delta-up' : 'text-delta-down'
   return (
     <div className={`flex justify-between gap-4 ${indent ? 'text-muted-foreground pl-3' : ''}`} title={title}>
-      <dt className={strong ? 'font-medium' : undefined}>{label}</dt>
+      <dt className={strong ? 'font-medium' : undefined}>
+        {label}
+        {note && <span className="text-muted-foreground block text-xs">{note}</span>}
+      </dt>
       <dd className={`tabular-nums ${strong ? 'text-base font-semibold' : 'text-foreground'} ${color}`}>{value}</dd>
     </div>
   )

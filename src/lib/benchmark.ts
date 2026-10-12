@@ -294,6 +294,7 @@ export type Portfolio = {
   yoy: PeriodChange | null
   /** The same in USD: exact, with no exchange rate involved. */
   valueUsd: number
+  totalGainUsd: number
   dayUsd: PeriodChange | null
   momUsd: PeriodChange | null
   yoyUsd: PeriodChange | null
@@ -318,6 +319,7 @@ export function summarize(
     mom: periodChange(timeline.points, 1, timeline.latestSession),
     yoy: periodChange(timeline.points, 12, timeline.latestSession),
     valueUsd: timeline.pointsUsd.at(-1)?.value ?? 0,
+    totalGainUsd: (timeline.pointsUsd.at(-1)?.value ?? 0) - (timeline.pointsUsd.at(-1)?.invested ?? 0),
     dayUsd: dayChange(timeline.pointsUsd, timeline.latestSession),
     momUsd: periodChange(timeline.pointsUsd, 1, timeline.latestSession),
     yoyUsd: periodChange(timeline.pointsUsd, 12, timeline.latestSession),
