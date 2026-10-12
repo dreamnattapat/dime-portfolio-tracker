@@ -10,7 +10,7 @@
 import { db, type Transaction } from '@/lib/db'
 import { parseFields } from '@/lib/dime/parser'
 import { fetchPdfAttachment, findDimeMessageIds } from '@/lib/google/gmail'
-import { extractText, WrongPasswordError } from '@/lib/pdf'
+import { extractText, SiteUpdatedError, WrongPasswordError } from '@/lib/pdf'
 
 export type SyncProgress = {
   total: number
@@ -38,7 +38,8 @@ export async function syncFromGmail(
   const progress: SyncProgress = { total: newIds.length, done: 0, added: 0, failed: 0 }
   onProgress({ ...progress })
 
-  let wrongPassword: WrongPasswordError | null = null
+  // Either fails every email the same way, so stop at the first one.
+  let fatal: WrongPasswordError | SiteUpdatedError | null = null
 
   async function processOne(messageId: string) {
     try {
@@ -60,8 +61,8 @@ export async function syncFromGmail(
       })
       if (email) progress.added++
     } catch (error) {
-      if (error instanceof WrongPasswordError) {
-        wrongPassword = error
+      if (error instanceof WrongPasswordError || error instanceof SiteUpdatedError) {
+        fatal = error
         return
       }
       console.error(`Failed to process message ${messageId}`, error)
@@ -76,11 +77,11 @@ export async function syncFromGmail(
   const queue = [...newIds]
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-      // A wrong birthdate will fail on every email, so stop at the first one.
-      while (queue.length && !wrongPassword) await processOne(queue.shift()!)
+      // A wrong birthdate or an out-of-date page fails every email, so stop at the first one.
+      while (queue.length && !fatal) await processOne(queue.shift()!)
     }),
   )
 
-  if (wrongPassword) throw wrongPassword
+  if (fatal) throw fatal
   return progress
 }

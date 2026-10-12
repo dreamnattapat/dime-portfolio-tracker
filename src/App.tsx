@@ -23,7 +23,7 @@ import {
 import type { Timeline } from '@/lib/benchmark'
 import { formatDateTime, localToday, setHideAmounts, type Currency } from '@/lib/format'
 import { clientId, disconnect, getAccessToken, hasValidToken, loadGoogleIdentity } from '@/lib/google/auth'
-import { WrongPasswordError } from '@/lib/pdf'
+import { SiteUpdatedError, WrongPasswordError } from '@/lib/pdf'
 import { syncFromGmail, type SyncProgress } from '@/lib/sync'
 
 export default function App() {
@@ -37,6 +37,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [wrongBirthdate, setWrongBirthdate] = useState(false)
   const [noEmailsFound, setNoEmailsFound] = useState(false)
+  // A deploy happened while this page was open: only a reload fixes it.
+  const [siteUpdated, setSiteUpdated] = useState(false)
   // Returning users land on their dashboard; "sync" takes them back through the steps.
   const [setupOpen, setSetupOpen] = useState(false)
   // The eye button: hide money amounts and share counts, keep percentages.
@@ -114,18 +116,21 @@ export default function App() {
     setError(null)
     setWrongBirthdate(false)
     setNoEmailsFound(false)
+    setSiteUpdated(false)
     setProgress(null)
     try {
       const accessToken = await getAccessToken()
       setConnected(true)
-      await syncFromGmail(accessToken, birthdate.password, setProgress)
+      const result = await syncFromGmail(accessToken, birthdate.password, setProgress)
       const now = new Date().toISOString()
       setLastSyncedAt(now)
       setSyncedAt(now)
       if ((await db.transactions.count()) > 0) setSetupOpen(false)
-      else setNoEmailsFound(true)
+      // Only when Gmail has no Dime! emails at all; emails that failed to open show as failures instead.
+      else if (result.total === 0) setNoEmailsFound(true)
     } catch (e) {
       if (e instanceof WrongPasswordError) setWrongBirthdate(true)
+      else if (e instanceof SiteUpdatedError) setSiteUpdated(true)
       else setError(e instanceof Error ? e.message : String(e))
       setSetupOpen(true)
     } finally {
@@ -221,6 +226,25 @@ export default function App() {
                 <button className="underline underline-offset-2" onClick={() => void handleDisconnect()}>
                   เปลี่ยนบัญชี
                 </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {siteUpdated && (
+            <Alert className="paper">
+              <AlertTitle>มีเวอร์ชันใหม่ของเว็บ</AlertTitle>
+              <AlertDescription>
+                <p>
+                  หน้านี้เปิดค้างไว้ก่อนเว็บอัปเดต จึงอ่านไฟล์ PDF ไม่ได้ โหลดหน้าใหม่แล้วใส่วันเกิดเพื่อซิงก์อีกครั้ง
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-brand hover:bg-brand/90 mt-2 rounded-full text-white"
+                  onClick={() => window.location.reload()}
+                >
+                  <RefreshCw aria-hidden />
+                  โหลดหน้าใหม่
+                </Button>
               </AlertDescription>
             </Alert>
           )}

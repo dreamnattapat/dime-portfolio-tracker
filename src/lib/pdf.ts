@@ -19,9 +19,29 @@ export class WrongPasswordError extends Error {
   }
 }
 
+/**
+ * Thrown when this page is older than the site: a deploy replaced the PDF
+ * engine's files (their names change every build), so the old names now get
+ * the app's HTML instead of JavaScript. Only a reload fixes it.
+ */
+export class SiteUpdatedError extends Error {
+  constructor() {
+    super('เว็บเพิ่งอัปเดตเป็นเวอร์ชันใหม่ กรุณาโหลดหน้าใหม่แล้วซิงก์อีกครั้ง')
+    this.name = 'SiteUpdatedError'
+  }
+}
+
+/** Errors browsers give when a script file is missing or came back as HTML. */
+const STALE_ASSET =
+  /not a valid JavaScript MIME type|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Setting up fake worker failed/i
+
+function staleAssetCheck(error: unknown): never {
+  throw error instanceof Error && STALE_ASSET.test(error.message) ? new SiteUpdatedError() : error
+}
+
 // Loaded on first use so the (large) PDF engine isn't in the initial page load.
 async function loadPdfjs() {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs').catch(staleAssetCheck)
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
   return pdfjs
 }
@@ -33,7 +53,8 @@ export async function extractText(pdfBytes: Uint8Array, password: string): Promi
   const loadingTask = pdfjs.getDocument({ data: pdfBytes.slice(), password })
   try {
     const doc = await loadingTask.promise.catch((error: unknown) => {
-      throw error instanceof pdfjs.PasswordException ? new WrongPasswordError() : error
+      if (error instanceof pdfjs.PasswordException) throw new WrongPasswordError()
+      return staleAssetCheck(error)
     })
     const pages: string[] = []
     for (let n = 1; n <= doc.numPages; n++) {
