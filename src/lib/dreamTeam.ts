@@ -1,9 +1,9 @@
 /**
- * Team Dream's members (Peter Lynch style) and the shape of a meeting report
+ * Team Lynch's members (Peter Lynch style) and the shape of a meeting report
  * (public/dream/reports/<date>.json).
  */
 
-export type DreamAgentId = 'scout' | 'lens' | 'story' | 'guard' | 'captain'
+export type DreamAgentId = 'atlas' | 'scout' | 'lens' | 'tempo' | 'story' | 'guard' | 'captain'
 
 export type DreamAgent = {
   id: DreamAgentId
@@ -13,9 +13,20 @@ export type DreamAgent = {
   role: string
   /** What they look at, one line. */
   focus: string
+  /** The first meeting (YYYY-MM-DD) they take part in, if they joined after the first one. */
+  since?: string
 }
 
 export const DREAM_AGENTS: DreamAgent[] = [
+  {
+    id: 'atlas',
+    name: 'Atlas',
+    thaiName: 'แอตลาส',
+    role: 'นักเศรษฐศาสตร์',
+    focus:
+      'ดอกเบี้ย เฟด เงินเฟ้อ การจ้างงาน และวัฏจักรเศรษฐกิจ บอกสภาพอากาศของตลาดและเงินสดที่ควรถือ ไม่ใช้ทายขึ้นลงของตลาด',
+    since: '2026-10-19',
+  },
   {
     id: 'scout',
     name: 'Scout',
@@ -29,6 +40,15 @@ export const DREAM_AGENTS: DreamAgent[] = [
     thaiName: 'เลนส์',
     role: 'นักวิเคราะห์ปัจจัยพื้นฐาน',
     focus: 'ทำการบ้านแบบ Lynch: PEG การเติบโตของกำไร หนี้ เงินสด สินค้าคงคลัง และจัดหุ้นเข้า 6 ประเภท',
+  },
+  {
+    id: 'tempo',
+    name: 'Tempo',
+    thaiName: 'เทมโป',
+    role: 'นักวิเคราะห์เทคนิค',
+    focus:
+      'เทรนด์ราคา ความแข็งแรงเทียบ S&P 500 แนวรับ/แนวต้าน วอลุ่ม และวันประกาศงบ แนะนำว่าจะให้คำสั่งเติมวันไหน ไม่ใช้เป็นเหตุผลเดียวในการซื้อขาย',
+    since: '2026-10-19',
   },
   {
     id: 'story',

@@ -92,14 +92,14 @@ if (index) {
   const sorted = [...index.reports].sort()
   if (sorted.join() !== index.reports.join() || new Set(sorted).size !== sorted.length)
     fail('reports/index.json must list each date once, oldest first')
-  const agents = new Set(DREAM_AGENTS.map((a) => a.id))
   for (const date of index.reports) {
     const report = read<DreamReport>(`public/dream/reports/${date}.json`)
     if (!report) continue
     const where = `report ${date}`
     if (report.date !== date) fail(`${where}: date field doesn't match the file name`)
     if (!report.headline?.trim() || !report.summary?.trim()) fail(`${where}: needs headline and summary`)
-    for (const id of agents) {
+    // Everyone who had joined by that meeting writes a memo.
+    for (const { id } of DREAM_AGENTS.filter((a) => !a.since || date >= a.since)) {
       const memo = report.memos?.find((m) => m.agent === id)
       if (!memo) fail(`${where}: no memo from ${id}`)
       else if (!memo.title?.trim() || !memo.points?.length) fail(`${where}: ${id}'s memo needs a title and points`)

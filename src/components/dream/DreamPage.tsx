@@ -135,9 +135,10 @@ function Team({ latest }: { latest: DreamReport | null }) {
         สมาชิกทีม
       </h2>
       {/* A swipeable row on a phone, a grid on a wide screen. */}
-      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0">
+      <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
         {DREAM_AGENTS.map((agent) => {
           const stance = latest?.memos.find((m) => m.agent === agent.id)?.stance
+          const joinsLater = agent.since != null && (!latest || latest.date < agent.since)
           return (
             <Card key={agent.id} className="w-64 shrink-0 snap-start gap-3 py-5 lg:w-auto">
               <CardContent className="space-y-3 px-5">
@@ -151,6 +152,11 @@ function Team({ latest }: { latest: DreamReport | null }) {
                   </div>
                 </div>
                 <p className="text-muted-foreground text-xs leading-relaxed">{agent.focus}</p>
+                {joinsLater && (
+                  <p className="text-xs">
+                    เข้าทีมตั้งแต่ประชุม <span className="font-semibold">{formatDate(agent.since)}</span>
+                  </p>
+                )}
                 {stance && (
                   <p className="text-xs">
                     มุมมองล่าสุด: <span className="font-semibold">{stance}</span>

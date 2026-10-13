@@ -1,9 +1,20 @@
-import { BookOpenText, Compass, ScanSearch, ShieldCheck, Telescope, type LucideIcon } from 'lucide-react'
+import {
+  Activity,
+  BookOpenText,
+  Compass,
+  Globe,
+  ScanSearch,
+  ShieldCheck,
+  Telescope,
+  type LucideIcon,
+} from 'lucide-react'
 
 import type { DreamAgentId } from '@/lib/dreamTeam'
 
 /** Each agent's icon and colours (background tint, foreground). */
 const AGENT_LOOK: Record<DreamAgentId, { icon: LucideIcon; bg: string; fg: string }> = {
+  atlas: { icon: Globe, bg: 'bg-[#e6e9fb] dark:bg-[#1f2547]', fg: 'text-[#4a55c4] dark:text-[#99a4f0]' },
+  tempo: { icon: Activity, bg: 'bg-[#fbf1d9] dark:bg-[#40351a]', fg: 'text-[#a77a0f] dark:text-[#e6c25f]' },
   scout: { icon: Telescope, bg: 'bg-[#e3eefb] dark:bg-[#1d3047]', fg: 'text-[#2a6cc0] dark:text-[#7fb2ef]' },
   lens: { icon: ScanSearch, bg: 'bg-[#e1f3ef] dark:bg-[#183a33]', fg: 'text-[#1f7a68] dark:text-[#6fcdb7]' },
   story: { icon: BookOpenText, bg: 'bg-[#fdeadf] dark:bg-[#43281a]', fg: 'text-[#c4561a] dark:text-[#f0a072]' },
