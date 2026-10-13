@@ -31,12 +31,13 @@ This file is the whole brief for a meeting. Follow it exactly.
 
 ## Rules of the challenge
 
+- **Four themes only.** The owner wants to understand what the team owns, so it only buys within: **technology** (semiconductors, software, internet, hardware), **space** (launch, satellites, space infrastructure and suppliers), **health care** (pharma, medtech, health services, profitable biotech) and **energy** (oil & gas, nuclear, power generation, grid, clean energy). No theme above **40%**. Every holding has a `theme` and an `about`: what the company does in one plain Thai sentence a beginner understands. Space companies that don't make a profit yet are small positions only (together at most 10%).
 - **Long only.** US-listed stocks (ADRs ok) a Dime! (KKP Dime) customer can buy, **market cap at least $500M**, price above $5, enough daily trading to be real. No options, leverage, crypto, OTC/pink sheets. ETFs only for parking cash (SGOV, BIL).
 - **Orders fill at the close** of the US session after the meeting (`session` = the next US session that hasn't opened yet). The meeting never knows the price it trades at.
 - **Commission:** 0.1605% of each fill (Dime!'s 0.15% + 7% VAT), applied by the engine.
 - **Buys** are a USD amount (`usd`, at least $200). **Sells** are a share of the holding (`fraction`, 1 = all).
 - **Position size:** no single holding above **20%** after the meeting's orders (using `state.json`'s latest prices); trim anything that has grown past 20%.
-- **Mix:** 8–15 holdings once invested; no sector above **40%**; fast growers at most **70%** of the money invested in stocks; at least two holdings that aren't fast growers.
+- **Mix:** 8–15 holdings once invested; no theme above **40%**; fast growers at most **70%** of the money invested in stocks; at least two holdings that aren't fast growers.
 - **Cash** (plus SGOV/BIL): 0–30%.
 - **Patience:** at most **6 orders** a meeting (the first meeting: 10). Don't sell anything bought less than 4 weeks ago unless its story has broken (results, guidance cut, fraud, the reason we bought is gone). "No changes" is a perfectly good meeting.
 - **Honesty:** every number comes from a source found in this meeting (with a link) or from `state.json`. If it can't be verified, don't use it. Correct teammates when their numbers are wrong.
@@ -60,7 +61,7 @@ This file is the whole brief for a meeting. Follow it exactly.
 5. **Guard's review** of each order and the resulting portfolio, including every lesson with status `rule` (rules are binding, like the rules of the challenge; candidates are strong advice). Apply Guard's changes.
 6. **Write the results.**
    - Append orders to `ledger.json`: `id` = `<date>-<n>`, `reportDate` = today, `session` = the US session they fill at, `ticker` (as Dime! writes it, e.g. `BRK.B`), `side`, `usd` or `fraction`, `reason` (one Thai sentence).
-   - Write `reports/<today>.json`: `date`, `session`, `headline` (one short Thai line), `summary` (Captain, 2–4 Thai sentences), `memos` (one from each of the five agents, Thai, 3–6 short points each, sources as `{title, url}`), `decisions` (**every holding and every order**: `ticker`, `action` buy/sell/hold/watch, `orderId` for buys and sells, `category`, `why` in Thai, and for buys and holds the two-minute `story` and `sellIf`, plus `lessons`: the ids of lessons this decision applied), `nextWatch` (2–4 items).
+   - Write `reports/<today>.json`: `date`, `session`, `headline` (one short Thai line), `summary` (Captain, 2–4 Thai sentences), `memos` (one from each of the five agents, Thai, 3–6 short points each, sources as `{title, url}`), `decisions` (**every holding and every order**: `ticker`, `action` buy/sell/hold/watch, `orderId` for buys and sells, `category`, `theme`, `about` (what the company does, one plain sentence), `why` in Thai, and for buys and holds the two-minute `story` and `sellIf`, plus `lessons`: the ids of lessons this decision applied), `nextWatch` (2–4 items).
    - Add today to `reports/index.json`.
 7. **Check.** Run `node scripts/dream-check.ts`; fix every problem until it says ok.
 8. **Publish.** Commit only files under `public/dream/` with the message `Dream meeting <date>`, then `git pull --rebase origin main` and `git push origin HEAD:main`. Pushing deploys the website.

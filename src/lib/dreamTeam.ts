@@ -67,6 +67,17 @@ export const LYNCH_CATEGORIES: Record<LynchCategory, string> = {
   cash: 'พักเงิน',
 }
 
+/** The four themes the owner follows (the team only buys within them), plus cash parking. */
+export type DreamTheme = 'tech' | 'space' | 'health' | 'energy' | 'cash'
+
+export const DREAM_THEMES: Record<DreamTheme, string> = {
+  tech: 'เทคโนโลยี',
+  space: 'อวกาศ',
+  health: 'สุขภาพ',
+  energy: 'พลังงาน',
+  cash: 'พักเงิน',
+}
+
 export type DreamMemo = {
   agent: DreamAgentId
   title: string
@@ -83,6 +94,10 @@ export type DreamDecision = {
   orderId?: string
   /** Lynch's category, for anything bought or held. */
   category?: LynchCategory
+  /** Which of the four themes it belongs to. */
+  theme?: DreamTheme
+  /** What the company does, in one plain sentence. */
+  about?: string
   why: string
   /** The two-minute story, for buys and holds. */
   story?: string

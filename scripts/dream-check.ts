@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import type { DreamLedger } from '../src/lib/dream.ts'
 import {
   DREAM_AGENTS,
+  DREAM_THEMES,
   LYNCH_CATEGORIES,
   type DreamLesson,
   type DreamReport,
@@ -106,6 +107,11 @@ if (index) {
       if (d.category && !(d.category in LYNCH_CATEGORIES)) fail(`${where}: ${d.ticker} category "${d.category}"`)
       if ((d.action === 'buy' || d.action === 'hold') && !d.category)
         fail(`${where}: ${d.ticker} needs a Lynch category`)
+      // Only the four themes the owner follows, each explained in one plain sentence.
+      if (d.theme && !(d.theme in DREAM_THEMES)) fail(`${where}: ${d.ticker} theme "${d.theme}"`)
+      if ((d.action === 'buy' || d.action === 'hold') && !d.theme) fail(`${where}: ${d.ticker} needs a theme`)
+      if ((d.action === 'buy' || d.action === 'hold') && d.theme !== 'cash' && !d.about?.trim())
+        fail(`${where}: ${d.ticker} needs "about", what the company does`)
       if (
         (d.action === 'buy' || d.action === 'hold') &&
         d.category !== 'cash' &&

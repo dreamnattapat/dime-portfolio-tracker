@@ -10,6 +10,7 @@ import { fetchDreamJson, useDream, type DreamData } from '@/hooks/useDream'
 import type { DreamFill } from '@/lib/dream'
 import {
   DREAM_AGENTS,
+  DREAM_THEMES,
   LYNCH_CATEGORIES,
   type DreamLesson,
   type DreamReport,
@@ -38,7 +39,7 @@ export function DreamPage() {
         <p className="text-brand text-sm font-semibold">ความท้าทาย · สไตล์ Peter Lynch</p>
         <h1 className="font-display text-3xl font-medium sm:text-4xl">ทีม Dream</h1>
         <p className="text-muted-foreground max-w-2xl leading-relaxed">
-          ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch ด้วยเงินสมมติ $
+          ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch เฉพาะหุ้นเทคโนโลยี อวกาศ สุขภาพ และพลังงาน ด้วยเงินสมมติ $
           {formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)} เป้าหมายเดียว: ชนะ S&P 500
           ตามล่าหุ้นที่โตได้หลายเท่า (multi-bagger) ประชุมทุกวันจันทร์ก่อนตลาดสหรัฐฯ เปิด และซื้อขายที่ราคาปิดของคืนนั้น
         </p>
@@ -208,6 +209,11 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                 <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                   <span className="w-16 shrink-0 font-semibold">{d.ticker}</span>
                   <DecisionBadge action={d.action} />
+                  {d.theme && (
+                    <span className="bg-muted shrink-0 rounded-full px-2 py-0.5 text-xs font-medium">
+                      {DREAM_THEMES[d.theme] ?? d.theme}
+                    </span>
+                  )}
                   {d.category && <CategoryChip category={d.category} />}
                   {d.lessons?.map((id) => (
                     <span
@@ -217,7 +223,10 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                       ใช้บทเรียน {id}
                     </span>
                   ))}
-                  <span className="text-muted-foreground min-w-0 flex-1 basis-60 leading-relaxed">{d.why}</span>
+                  <span className="min-w-0 flex-1 basis-60 leading-relaxed">
+                    {d.about && <span className="block">{d.about}</span>}
+                    <span className="text-muted-foreground block">{d.why}</span>
+                  </span>
                   {fill && <FillStatus fill={fill} />}
                 </div>
                 {d.story && (
@@ -348,6 +357,7 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
   const { state } = data
   // Each holding's Lynch category, from the latest meeting.
   const category = new Map(report?.decisions.filter((d) => d.category).map((d) => [d.ticker, d.category!]))
+  const theme = new Map(report?.decisions.filter((d) => d.theme).map((d) => [d.ticker, d.theme!]))
   return (
     <Card>
       <CardHeader>
@@ -374,7 +384,12 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
                   <span className="font-medium">{h.ticker}</span>
                   {category.get(h.ticker) && (
                     <span className="text-muted-foreground block text-xs">
-                      {LYNCH_CATEGORIES[category.get(h.ticker)!]}
+                      {[
+                        theme.get(h.ticker) && DREAM_THEMES[theme.get(h.ticker)!],
+                        LYNCH_CATEGORIES[category.get(h.ticker)!],
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </span>
                   )}
                 </TableCell>
@@ -545,8 +560,14 @@ function Rules() {
           <li>เงินสมมติ ไม่ใช่เงินจริง และไม่ใช่คำแนะนำการลงทุน</li>
           <li>ประชุมก่อนตลาดสหรัฐฯ เปิด แล้วซื้อขายที่ราคาปิดของคืนนั้น จึงไม่มีทางรู้ราคาที่ซื้อขายล่วงหน้า</li>
           <li>เสียค่าคอมมิชชันแบบ Dime! (0.15% + VAT 7%) ทุกครั้งที่ซื้อขาย</li>
+          <li>
+            เลือกเฉพาะ 4 ธีม: เทคโนโลยี อวกาศ สุขภาพ พลังงาน ธีมละไม่เกิน 40%
+            และทุกตัวต้องอธิบายได้ว่าบริษัททำอะไรในประโยคเดียว
+          </li>
           <li>ซื้อหุ้นในสหรัฐฯ มูลค่าตลาด $500 ล้านขึ้นไป ไม่ยืมเงิน ไม่ short ไม่ใช้ออปชัน ใช้ ETF เฉพาะพักเงิน</li>
-          <li>หุ้นตัวเดียวไม่เกิน 20% กลุ่มเดียวไม่เกิน 40% หุ้นโตเร็วรวมไม่เกิน 70% ของเงินที่ลงในหุ้น</li>
+          <li>
+            หุ้นตัวเดียวไม่เกิน 20% หุ้นโตเร็วรวมไม่เกิน 70% ของเงินที่ลงในหุ้น หุ้นอวกาศที่ยังขาดทุนถือได้แค่ไม้เล็ก
+          </li>
           <li>
             ไม่เกิน 6 คำสั่งต่อการประชุม (ครั้งแรก 10) และไม่ขายหุ้นที่เพิ่งซื้อไม่ถึง 4 สัปดาห์
             เว้นแต่เรื่องเล่าเปลี่ยน
