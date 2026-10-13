@@ -44,6 +44,19 @@ describe('computeDream', () => {
     expect(state.spyReturnPct).toBeCloseTo(21)
   })
 
+  it('measures the fill against the last close the team saw at the meeting', () => {
+    const state = computeDream(
+      ledger([order({ ticker: 'NVDA', side: 'buy', session: '2026-10-14', reportDate: '2026-10-14', usd: 1000 })]),
+      spy,
+      prices,
+      '2026-10-16',
+      '2026-10-15',
+    )
+    // The meeting on the 14th saw the 13th's close (55); it filled at the 14th's close (60).
+    expect(state.fills[0]).toMatchObject({ refDate: '2026-10-13', refPrice: 55 })
+    expect(state.fills[0].slipPct).toBeCloseTo((60 / 55 - 1) * 100)
+  })
+
   it('leaves an order pending until its session has closed', () => {
     const state = computeDream(
       ledger([order({ ticker: 'NVDA', side: 'buy', session: '2026-10-15', usd: 1000 })]),

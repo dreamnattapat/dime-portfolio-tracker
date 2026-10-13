@@ -48,6 +48,11 @@ export type DreamFill = DreamOrder & {
   status: 'filled' | 'pending' | 'rejected'
   fillDate?: string
   price?: number
+  /** The last close the team could see at the meeting (before `reportDate`), and how far the fill price is from it, %. */
+  refDate?: string
+  refPrice?: number
+  /** (fill / refPrice - 1) * 100. For a buy, above 0 means it cost more than the price at the meeting. */
+  slipPct?: number
   units?: number
   /** Cash in (+) or out (-), commission included. */
   cashUsd?: number
@@ -168,6 +173,19 @@ export function computeDream(
     return i < 0 ? null : series.on(day)
   }
 
+  /** What the team saw at the meeting: the last close before the meeting's date. */
+  function seenAtMeeting(ticker: string, reportDate: string): { refDate?: string; refPrice?: number } {
+    const series = prices.get(ticker)
+    if (!series) return {}
+    const i = series.dates.findLastIndex((d) => d < reportDate)
+    return i < 0 ? {} : { refDate: series.dates[i], refPrice: series.on(series.dates[i]) }
+  }
+
+  function slippage(f: DreamFill, price: number) {
+    const ref = seenAtMeeting(f.ticker, f.reportDate)
+    return { ...ref, slipPct: ref.refPrice ? (price / ref.refPrice - 1) * 100 : undefined }
+  }
+
   function fillOn(day: string) {
     const due = fills.filter((f) => f.status === 'pending' && f.session <= day)
     // Sells first, so their cash can pay for the day's buys.
@@ -195,6 +213,7 @@ export function computeDream(
           status: 'filled',
           fillDate: day,
           price,
+          ...slippage(f, price),
           units,
           cashUsd: -(gross + commission),
           commissionUsd: commission,
@@ -218,6 +237,7 @@ export function computeDream(
           status: 'filled',
           fillDate: day,
           price,
+          ...slippage(f, price),
           units,
           cashUsd: gross - commission,
           commissionUsd: commission,

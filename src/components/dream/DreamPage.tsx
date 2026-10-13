@@ -483,12 +483,27 @@ function PastMeetings({ dates, data }: { dates: string[]; data: DreamData }) {
   )
 }
 
+/** Average gap between the fill and the price the team saw at the meeting, from the buyer's side (+ = paid more). */
+function averageSlip(fills: DreamFill[], side: 'buy' | 'sell'): number | null {
+  const slips = fills.filter((f) => f.side === side && f.slipPct != null).map((f) => f.slipPct!)
+  return slips.length ? slips.reduce((a, b) => a + b, 0) / slips.length : null
+}
+
 function TradeLog({ fills }: { fills: DreamFill[] }) {
+  const buySlip = averageSlip(fills, 'buy')
+  const sellSlip = averageSlip(fills, 'sell')
   return (
     <Card>
       <CardHeader>
         <CardTitle>รายการซื้อขายทั้งหมด</CardTitle>
-        <CardDescription>ราคาปิดของรอบที่ซื้อขาย รวมค่าคอมมิชชัน 0.15% + VAT</CardDescription>
+        <CardDescription>
+          ราคาปิดของรอบที่ซื้อขาย รวมค่าคอมมิชชัน 0.15% + VAT ส่วน "ต่างจากตอนประชุม"
+          คือราคาที่เติมเทียบกับราคาปิดล่าสุดที่ทีมเห็นตอนประชุม
+          {buySlip != null && ` ซื้อเฉลี่ย ${formatPercent(buySlip, { signed: true, decimals: 2 })}`}
+          {buySlip != null && sellSlip != null && ' · '}
+          {sellSlip != null && `ขายเฉลี่ย ${formatPercent(sellSlip, { signed: true, decimals: 2 })}`}
+          {(buySlip != null || sellSlip != null) && ' (ซื้อ: บวก = จ่ายแพงกว่าตอนประชุม, ขาย: บวก = ขายได้ดีกว่า)'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -499,6 +514,7 @@ function TradeLog({ fills }: { fills: DreamFill[] }) {
               <TableHead>หุ้น</TableHead>
               <TableHead className="text-right">จำนวนหุ้น</TableHead>
               <TableHead className="text-right">ราคา</TableHead>
+              <TableHead className="text-right">ต่างจากตอนประชุม</TableHead>
               <TableHead className="text-right">เงินเข้า/ออก</TableHead>
               <TableHead>สถานะ</TableHead>
             </TableRow>
@@ -516,6 +532,9 @@ function TradeLog({ fills }: { fills: DreamFill[] }) {
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {f.price != null ? formatNumber(f.price) : '—'}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {f.slipPct != null ? formatPercent(f.slipPct, { signed: true, decimals: 2 }) : '—'}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {f.cashUsd != null
