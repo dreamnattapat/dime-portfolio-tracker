@@ -10,8 +10,12 @@ import { fetchDreamJson, useDream, type DreamData } from '@/hooks/useDream'
 import type { DreamFill } from '@/lib/dream'
 import {
   DREAM_AGENTS,
+  MAX_HOLDINGS,
+  rewardRisk,
+  rewardRiskVerdict,
   DREAM_THEMES,
   LYNCH_CATEGORIES,
+  type DreamDecision,
   type DreamLesson,
   type DreamReport,
   type DreamRetro,
@@ -236,6 +240,7 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                   </span>
                   {fill && <FillStatus fill={fill} />}
                 </div>
+                {d.targetUsd != null && d.stopUsd != null && d.priceUsd != null && <RewardRiskLine decision={d} />}
                 {d.story && (
                   <details className="group/story">
                     <summary className="text-brand cursor-pointer list-none text-xs font-medium [&::-webkit-details-marker]:hidden">
@@ -360,11 +365,51 @@ function FillStatus({ fill }: { fill: DreamFill }) {
   )
 }
 
+const RR_TONE = {
+  great: 'text-delta-up',
+  ok: 'text-delta-up',
+  weak: 'text-muted-foreground',
+  review: 'text-delta-down',
+} as const
+
+/** The target, the stop and what they add up to, for one decision. */
+function RewardRiskLine({ decision: d }: { decision: DreamDecision }) {
+  const ratio = rewardRisk(d.priceUsd!, d.targetUsd!, d.stopUsd!)
+  const verdict = rewardRiskVerdict(ratio)
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums">
+        <span>ราคาตอนประชุม {formatMoney(d.priceUsd, '$')}</span>
+        <span>เป้า {formatMoney(d.targetUsd, '$')}</span>
+        <span>ตัดขาดทุน {formatMoney(d.stopUsd, '$')}</span>
+        <span className={`font-semibold ${RR_TONE[verdict.tone]}`}>
+          คุ้มเสี่ยง {ratio == null ? '—' : `1:${formatNumber(ratio, 1)}`} · {verdict.label}
+        </span>
+      </p>
+      {(d.targetWhy || d.stopWhy) && (
+        <p className="text-muted-foreground leading-relaxed">
+          {d.targetWhy && <span>เป้า: {d.targetWhy} </span>}
+          {d.stopWhy && <span>ตัดขาดทุน: {d.stopWhy}</span>}
+        </p>
+      )}
+      {d.review && (
+        <p className="leading-relaxed">
+          <span className="font-semibold">ทบทวน: </span>
+          {d.review}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function Holdings({ data, report }: { data: DreamData; report: DreamReport | null }) {
   const { state } = data
   // Each holding's Lynch category, from the latest meeting.
   const category = new Map(report?.decisions.filter((d) => d.category).map((d) => [d.ticker, d.category!]))
   const theme = new Map(report?.decisions.filter((d) => d.theme).map((d) => [d.ticker, d.theme!]))
+  const levels = new Map(
+    report?.decisions.filter((d) => d.targetUsd != null && d.stopUsd != null).map((d) => [d.ticker, d]),
+  )
   return (
     <Card>
       <CardHeader>
@@ -382,6 +427,7 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
               <TableHead className="text-right">ราคา</TableHead>
               <TableHead className="text-right">มูลค่า</TableHead>
               <TableHead className="text-right">กำไร/ขาดทุน</TableHead>
+              <TableHead className="text-right">คุ้มเสี่ยงตอนนี้</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -413,6 +459,9 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
                     {formatPercent(h.unrealizedPct, { signed: true, decimals: 2 })}
                   </div>
                 </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <RewardRiskNow level={levels.get(h.ticker)} price={h.priceUsd} />
+                </TableCell>
               </TableRow>
             ))}
             <TableRow>
@@ -422,7 +471,7 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
               </TableCell>
               <TableCell colSpan={3} />
               <TableCell className="text-right tabular-nums">{formatMoney(state.cashUsd, '$')}</TableCell>
-              <TableCell />
+              <TableCell colSpan={2} />
             </TableRow>
           </TableBody>
           <TableFooter>
@@ -434,11 +483,28 @@ function Holdings({ data, report }: { data: DreamData; report: DreamReport | nul
               >
                 {formatSignedMoney(state.valueUsd - data.ledger.startingCashUsd, '$')}
               </TableCell>
+              <TableCell />
             </TableRow>
           </TableFooter>
         </Table>
       </CardContent>
     </Card>
+  )
+}
+
+/** Reward:risk at today's price, against the target and stop from the latest meeting. */
+function RewardRiskNow({ level, price }: { level?: DreamDecision; price: number }) {
+  if (!level || level.targetUsd == null || level.stopUsd == null)
+    return <span className="text-muted-foreground">—</span>
+  const ratio = rewardRisk(price, level.targetUsd, level.stopUsd)
+  const verdict = rewardRiskVerdict(ratio)
+  return (
+    <>
+      <span className={`font-semibold ${RR_TONE[verdict.tone]}`}>
+        {ratio == null ? '—' : `1:${formatNumber(ratio, 1)}`}
+      </span>
+      <div className="text-xs opacity-80">{verdict.label}</div>
+    </>
   )
 }
 
@@ -595,7 +661,13 @@ function Rules() {
           </li>
           <li>ซื้อหุ้นในสหรัฐฯ มูลค่าตลาด $500 ล้านขึ้นไป ไม่ยืมเงิน ไม่ short ไม่ใช้ออปชัน ใช้ ETF เฉพาะพักเงิน</li>
           <li>
-            หุ้นตัวเดียวไม่เกิน 20% หุ้นโตเร็วรวมไม่เกิน 70% ของเงินที่ลงในหุ้น หุ้นอวกาศที่ยังขาดทุนถือได้แค่ไม้เล็ก
+            พอร์ตกระชับ: ถือไม่เกิน {MAX_HOLDINGS} ตัว หุ้นตัวเดียวไม่เกิน 25% หุ้นโตเร็วรวมไม่เกิน 70%
+            ของเงินที่ลงในหุ้น หุ้นอวกาศที่ยังขาดทุนรวมกันไม่เกิน 10% เงินสดได้ถึง 50% ถ้าไม่มีตัวที่คุ้มพอ
+          </li>
+          <li>
+            ทุกตัวต้องมีเป้าราคาและจุดตัดขาดทุน แล้วคำนวณความคุ้มเสี่ยง (ได้เท่าไรต่อเสี่ยง 1) ทุกสัปดาห์: 1:3
+            ขึ้นไปดีมาก, 1:2 โอเค ซื้อใหม่ต้องได้อย่างน้อย 1:2 ส่วนต่ำกว่านั้นต้องเขียนทบทวน และใกล้ 1:1
+            ต้องตัดสินใจว่าจะถือต่อ ลด หรือขาย
           </li>
           <li>
             ไม่เกิน 6 คำสั่งต่อการประชุม (ครั้งแรก 10) และไม่ขายหุ้นที่เพิ่งซื้อไม่ถึง 4 สัปดาห์

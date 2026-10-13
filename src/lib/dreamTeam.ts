@@ -123,6 +123,16 @@ export type DreamDecision = {
   story?: string
   /** What would make the team sell. */
   sellIf?: string
+  /** The last close the team saw at the meeting. */
+  priceUsd?: number
+  /** Where the team thinks it can go in about 12 months, and what that rests on. */
+  targetUsd?: number
+  targetWhy?: string
+  /** The price where the trend or the story is broken, so the team gets out, and why that level. */
+  stopUsd?: number
+  stopWhy?: string
+  /** Required when reward:risk is below 1:2: the team's verdict (keep, trim or sell) and why. */
+  review?: string
   /** Lessons (lessons.json ids) this decision applied. */
   lessons?: string[]
 }
@@ -184,4 +194,30 @@ export type DreamRetro = {
   }[]
   /** What changed in lessons.json. */
   lessonChanges: { id: string; change: 'added' | 'confirmed' | 'contradicted' | 'promoted' | 'retired'; note: string }[]
+}
+
+/** A concentrated portfolio: never more than this many holdings. */
+export const MAX_HOLDINGS = 5
+
+/** Reward:risk from a price, a target and a stop, as reward per 1 of risk. Null when it can't be worked out. */
+export function rewardRisk(price: number, target: number, stop: number): number | null {
+  const risk = price - stop
+  if (![price, target, stop].every(Number.isFinite) || risk <= 0) return null
+  return (target - price) / risk
+}
+
+/** The owner's bands: 1:3 and up is very good, 1:2 is fine, near 1:1 means review. */
+export const RR_VERY_GOOD = 3
+export const RR_OK = 2
+export const RR_REVIEW = 1.2
+
+export type RewardRiskVerdict = { label: string; tone: 'great' | 'ok' | 'weak' | 'review' }
+
+export function rewardRiskVerdict(exact: number | null): RewardRiskVerdict {
+  // Judged at one decimal, as written (1:2.0), so 1.98 counts as 1:2.
+  const ratio = exact == null ? null : Math.round(exact * 10) / 10
+  if (ratio == null || ratio < RR_REVIEW) return { label: 'ต้องทบทวน', tone: 'review' }
+  if (ratio >= RR_VERY_GOOD) return { label: 'ดีมาก', tone: 'great' }
+  if (ratio >= RR_OK) return { label: 'โอเค', tone: 'ok' }
+  return { label: 'อ่อน', tone: 'weak' }
 }

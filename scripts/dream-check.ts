@@ -12,6 +12,9 @@ import {
   DREAM_AGENTS,
   DREAM_THEMES,
   LYNCH_CATEGORIES,
+  MAX_HOLDINGS,
+  RR_OK,
+  rewardRisk,
   type DreamLesson,
   type DreamReport,
   type DreamRetro,
@@ -106,6 +109,11 @@ if (index) {
       for (const s of memo?.sources ?? [])
         if (!/^https?:\/\//.test(s.url)) fail(`${where}: ${id} source url "${s.url}"`)
     }
+    // Concentrated: at most 5 holdings after a meeting.
+    const kept = (report.decisions ?? []).filter(
+      (d) => (d.action === 'buy' || d.action === 'hold') && d.category !== 'cash',
+    ).length
+    if (kept > MAX_HOLDINGS) fail(`${where}: ${kept} holdings, the limit is ${MAX_HOLDINGS}`)
     // Lynch: every stock bought or held has a category and a two-minute story.
     for (const d of report.decisions ?? []) {
       if (!['buy', 'sell', 'hold', 'watch'].includes(d.action)) fail(`${where}: decision action "${d.action}"`)
@@ -123,6 +131,22 @@ if (index) {
         !(d.story?.trim() && d.sellIf?.trim())
       )
         fail(`${where}: ${d.ticker} needs its two-minute story and sellIf`)
+      // Reward:risk: every stock bought or held has a price, a target and a stop; buys need at least 1:2, and
+      // anything under 1:2 needs the team's written review.
+      if ((d.action === 'buy' || d.action === 'hold') && d.category !== 'cash') {
+        const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v > 0
+        if (!num(d.priceUsd) || !num(d.targetUsd) || !num(d.stopUsd))
+          fail(`${where}: ${d.ticker} needs priceUsd, targetUsd and stopUsd`)
+        else {
+          if (!d.targetWhy?.trim() || !d.stopWhy?.trim()) fail(`${where}: ${d.ticker} needs targetWhy and stopWhy`)
+          if (d.stopUsd! >= d.priceUsd!) fail(`${where}: ${d.ticker} stop must be below the price`)
+          const rr = rewardRisk(d.priceUsd!, d.targetUsd!, d.stopUsd!)
+          if (d.action === 'buy' && (rr == null || Math.round(rr * 10) / 10 < RR_OK))
+            fail(`${where}: ${d.ticker} is a buy at 1:${rr?.toFixed(2)}, under the 1:2 minimum`)
+          if ((rr == null || Math.round(rr * 10) / 10 < RR_OK) && !d.review?.trim())
+            fail(`${where}: ${d.ticker} is at 1:${rr?.toFixed(2)}, under 1:2, and needs a "review"`)
+        }
+      }
       if (d.orderId && ledger && !ledger.orders.some((o) => o.id === d.orderId))
         fail(`${where}: decision points to order ${d.orderId}, not in the ledger`)
     }
