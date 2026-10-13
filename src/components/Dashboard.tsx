@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Info } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AssetsTable } from '@/components/AssetsTable'
@@ -15,7 +15,6 @@ import {
   formatDate,
   formatDateTime,
   formatNumber,
-  formatMoney,
   formatPercent,
   formatSignedMoney,
   localToday,
@@ -238,35 +237,32 @@ function SummaryCard({
   return (
     <Card className="gap-0 px-6">
       <section aria-label="ภาพรวมพอร์ต">
-        <header>
-          <h2 className="font-display text-lg leading-snug font-medium">ภาพรวมพอร์ต</h2>
-          <p className="text-muted-foreground text-xs">
+        <header className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-muted-foreground text-base leading-snug font-medium">ภาพรวมพอร์ต</h2>
+          <p className="text-muted-foreground text-right text-xs">
             {loading
               ? 'กำลังดึงราคา…'
               : portfolio?.pricesAsOf
-                ? `ราคา ณ ${formatDateTime(portfolio.pricesAsOf)}`
+                ? formatDateTime(portfolio.pricesAsOf)
                 : portfolio
                   ? `ราคาปิด ${formatDate(portfolio.timeline.latestSession)}`
                   : 'ไม่มีราคาตลาด'}
           </p>
         </header>
 
-        <div className="my-5 border-t" aria-hidden />
-
-        <div className="lg:grid lg:grid-cols-2 lg:gap-12">
-          <div className="space-y-2">
-            <p className="text-muted-foreground text-sm">สินทรัพย์รวม</p>
-            <p className="font-display text-4xl font-medium tabular-nums">
-              {portfolio ? formatMoney(usd ? portfolio.valueUsd : portfolio.valueThb, currency) : pending}
-            </p>
-            <div className="space-y-1 pt-1 text-sm">
-              <Delta
-                label="เปลี่ยนแปลงจากวันก่อน"
-                change={day}
-                pending={!portfolio}
-                title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
-              />
-            </div>
+        <div className="mt-4 lg:grid lg:grid-cols-2 lg:gap-12">
+          <div className="space-y-3">
+            <BigAmount
+              value={portfolio ? (usd ? portfolio.valueUsd : portfolio.valueThb) : null}
+              usd={usd}
+              pending={pending}
+            />
+            <Delta
+              label="% เปลี่ยนแปลงจากวันก่อน"
+              change={day}
+              pending={!portfolio}
+              title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
+            />
           </div>
 
           <div className="my-5 border-t lg:hidden" aria-hidden />
@@ -481,6 +477,21 @@ function Stamp({ leadPct }: { leadPct: number }) {
 }
 
 /** A period's return with an arrow, so direction never relies on color alone. */
+function BigAmount({ value, usd, pending }: { value: number | null; usd: boolean; pending: string }) {
+  if (value == null) return <p className="font-display text-4xl font-medium tabular-nums">{pending}</p>
+  const [whole, cents] = formatNumber(Math.abs(value), 2).split('.')
+  return (
+    <p className="font-display flex items-baseline gap-1.5 font-semibold tabular-nums">
+      <span className="text-4xl">
+        {value < 0 ? '-' : ''}
+        {whole}
+        {cents != null && <span className="text-xl">.{cents}</span>}
+      </span>
+      <span className="text-xl">{usd ? 'USD' : 'THB'}</span>
+    </p>
+  )
+}
+
 function Delta({
   label,
   change,
@@ -494,7 +505,7 @@ function Delta({
 }) {
   if (!change) {
     return (
-      <p className="text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         {label} {pending ? '…' : '— ข้อมูลย้อนหลังไม่พอ'}
       </p>
     )
@@ -502,12 +513,17 @@ function Delta({
   const up = change.returnPct >= 0
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (
-    <p className="flex items-center gap-1.5" title={title}>
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
-        <Arrow className="size-4" aria-hidden />
-        {formatPercent(change.returnPct, { signed: true })}
-      </span>
-    </p>
+    <div className="space-y-1" title={title}>
+      <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+        {label}
+        <Info className="size-4" aria-hidden />
+      </p>
+      <p
+        className={`flex items-center text-2xl font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
+      >
+        <Arrow className="size-6" aria-hidden />
+        {formatPercent(Math.abs(change.returnPct), { decimals: 2 })}
+      </p>
+    </div>
   )
 }
