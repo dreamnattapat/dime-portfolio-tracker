@@ -51,6 +51,38 @@ describe('computeTimeline', () => {
     expect(points[1].bought).toBe(3000)
   })
 
+  it('leaves out the part of a sale that was never bought in the records', () => {
+    const prices = new Map([
+      ['AAPL', series('AAPL', [10, 10, 10, 10], 10)],
+      ['MSFT', series('MSFT', [10, 10, 10, 10], 10)],
+    ])
+    // $100 of AAPL, then a $30 sale of MSFT that was bought before the history starts: nothing moved, no gain.
+    const { pointsUsd } = computeTimeline(
+      [flow('2026-01-05', 'AAPL', 10, 100), flow('2026-01-07', 'MSFT', -3, -30)],
+      spy,
+      fx,
+      prices,
+      '2026-01-09',
+    )
+    expect(cumulativeReturns(pointsUsd, 0).every((r) => r === 0 || r === null)).toBe(true)
+    expect(pointsUsd.every((p) => p.sold === 0 && p.spy >= 0)).toBe(true)
+  })
+
+  it('counts only the recorded units of a sale that is partly on record', () => {
+    const prices = new Map([['AAPL', series('AAPL', [10, 10, 10, 10], 10)]])
+    // Bought 10, sold 20 at $10: only the 10 on record count ($100 of $200).
+    const { pointsUsd } = computeTimeline(
+      [flow('2026-01-05', 'AAPL', 10, 100), flow('2026-01-07', 'AAPL', -20, -200)],
+      spy,
+      fx,
+      prices,
+      '2026-01-09',
+    )
+    const day = pointsUsd.find((p) => p.date === '2026-01-07')!
+    expect(day).toMatchObject({ sold: 100, value: 0 })
+    expect(day.invested).toBeCloseTo(0)
+  })
+
   it('also tracks everything in USD, without the exchange rate', () => {
     const fxMoves = series('THB=X', [30, 31, 32, 33], 34)
     const prices = new Map([['AAPL', series('AAPL', [10, 12, 12, 15], 20)]])
@@ -83,8 +115,8 @@ describe('computeTimeline', () => {
     const { points, holdings } = computeTimeline([sell], spy, fx, prices, '2026-01-09')
     expect(points.map((p) => p.value)).toEqual([0, 0, 0, 0, 0, 0])
     expect(holdings).toEqual([])
-    // The sale's proceeds are all gain, as the realized P&L counts them.
-    expect(points.at(-1)!.value - points.at(-1)!.invested).toBe(1500)
+    // Its cost is unknown, so the sale counts as nothing: no gain, no money taken out.
+    expect(points.at(-1)!.value - points.at(-1)!.invested).toBeCloseTo(0)
   })
 
   it('only flags a ticker as unpriced if it still is today', () => {

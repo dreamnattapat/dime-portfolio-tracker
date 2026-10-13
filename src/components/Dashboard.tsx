@@ -192,8 +192,8 @@ export function Dashboard({
 
       {analytics.incompleteBasisTrades > 0 && (
         <p className="text-muted-foreground text-xs">
-          มีรายการขาย {analytics.incompleteBasisTrades} รายการที่ไม่พบรายการซื้อในอีเมลของคุณ
-          จึงนับยอดขายทั้งหมดเป็นกำไร
+          มีรายการขาย {analytics.incompleteBasisTrades} รายการที่ไม่พบรายการซื้อในอีเมลของคุณ (ซื้อไว้ก่อนช่วงอีเมล)
+          จึงไม่ทราบต้นทุนของส่วนนั้น และไม่นับเป็นกำไรหรือขาดทุน
         </p>
       )}
     </div>

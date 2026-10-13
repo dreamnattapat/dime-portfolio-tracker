@@ -111,16 +111,23 @@ export function computeTimeline(
     for (; i < flows.length && flows[i].date <= day; i++) {
       const f = flows[i]
       const factor = prices.get(f.security)?.splitFactorAfter(f.date) ?? 1
+      const held = units.get(f.security) ?? 0
       // Selling more than is on record (bought before the Gmail history) leaves none, not a short position.
-      units.set(f.security, Math.max(0, (units.get(f.security) ?? 0) + f.units * factor))
+      units.set(f.security, Math.max(0, held + f.units * factor))
       if (f.unitPrice) lastTradePrice.set(f.security, f.unitPrice / factor)
-      cashThb += f.thb
-      cashUsd += f.usd
-      if (f.thb < 0) bought -= f.thb
-      else sold += f.thb
-      if (f.usd < 0) boughtUsd -= f.usd
-      else soldUsd += f.usd
-      spyShares += -f.usd / spy.on(f.date)
+      // The part of a sale that was never recorded as bought was never in the portfolio's value, so its cash is
+      // outside the timeline too: counting it would show money leaving as a gain (a sudden jump in the chart).
+      const sellUnits = -f.units * factor
+      const share = sellUnits > held + EPS ? Math.max(0, held) / sellUnits : 1
+      const thb = f.thb * share
+      const usd = f.usd * share
+      cashThb += thb
+      cashUsd += usd
+      if (thb < 0) bought -= thb
+      else sold += thb
+      if (usd < 0) boughtUsd -= usd
+      else soldUsd += usd
+      spyShares += -usd / spy.on(f.date)
     }
 
     const isToday = day === today

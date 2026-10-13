@@ -53,6 +53,8 @@ export type ClosedTrade = {
   win: boolean
   /** False when more was sold than bought on record (e.g. bought before the Gmail history). */
   basisComplete: boolean
+  /** The share of the sale (0 to 1) with a buy on record; the rest has an unknown cost and isn't counted. */
+  recordedShare: number
 }
 
 export type OpenPosition = {
@@ -101,6 +103,8 @@ export type LedgerEntry = {
   pnlUsd: number | null
   pnlThb: number | null
   basisComplete: boolean
+  /** Sells: the share of the sale with a buy on record (the rest has an unknown cost and isn't counted). */
+  recordedShare: number
 }
 
 export type TradeStats = {
@@ -184,6 +188,7 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
         pnlUsd: null,
         pnlThb: null,
         basisComplete: true,
+        recordedShare: 1,
       })
     }
   }
@@ -236,12 +241,21 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
       // Whatever was paid beyond the shares' price: commission and VAT.
       buyFeesUsd += row.totalAmount - costUsd
       buyFeesThb += row.totalAmountThb - (row.grossAmountThb ?? row.totalAmountThb)
-      ledger.push({ ...entry, ...heldOn(row.security, average, date), pnlUsd: null, pnlThb: null, basisComplete: true })
+      ledger.push({
+        ...entry,
+        ...heldOn(row.security, average, date),
+        pnlUsd: null,
+        pnlThb: null,
+        basisComplete: true,
+        recordedShare: 1,
+      })
       continue
     }
 
-    // Selling more than is on record (bought before the Gmail history) has no cost for the extra units.
+    // Selling more than is on record (bought before the Gmail history): the extra units' cost is unknown, so they
+    // count as neither profit nor loss. Only the units with a recorded buy are measured.
     const basisComplete = units <= average.units + EPS
+    const share = basisComplete || units <= 0 ? 1 : Math.max(0, average.units) / units
     const soldCostUsd = basisComplete ? (average.costUsd / average.units) * units : average.costUsd
     if (average.units - units > EPS) {
       average.costUsd -= soldCostUsd
@@ -250,13 +264,20 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
       average.units = 0
       average.costUsd = 0
     }
-    const pnlUsd = net.usd - soldCostUsd
+    const pnlUsd = net.usd * share - soldCostUsd
     // At the confirmation's rate, which its baht amounts use.
     const rate = row.fxRateThbUsd ?? (net.usd ? proceedsThb / net.usd : 0)
     const pnlThb = pnlUsd * rate
     asset.realizedPnlUsd += pnlUsd
     asset.realizedPnlThb += pnlThb
-    ledger.push({ ...entry, ...heldOn(row.security, average, date), pnlUsd, pnlThb, basisComplete })
+    ledger.push({
+      ...entry,
+      ...heldOn(row.security, average, date),
+      pnlUsd,
+      pnlThb,
+      basisComplete,
+      recordedShare: share,
+    })
     trades.push({
       date: tradeDate(row),
       security: row.security,
@@ -265,6 +286,7 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
       pnlThb,
       win: pnlUsd > 0,
       basisComplete,
+      recordedShare: share,
     })
   }
 
@@ -288,7 +310,8 @@ export function computeAnalytics(transactions: Transaction[], splits: Record<str
     openPositions,
     cashFlows,
     ledger,
-    stats: computeTradeStats(trades.filter((t) => !WIN_RATE_EXCLUDED.has(t.security))),
+    // A sale with no recorded buy at all can't be rated a win or a loss.
+    stats: computeTradeStats(trades.filter((t) => !WIN_RATE_EXCLUDED.has(t.security) && t.recordedShare > 0)),
     incompleteBasisTrades: trades.filter((t) => !t.basisComplete).length,
   }
 }

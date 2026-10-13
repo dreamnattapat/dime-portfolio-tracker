@@ -154,14 +154,27 @@ describe('computeAnalytics', () => {
     expect(result.cashFlows[1].usd).toBeCloseTo(1500 / 33 - 0.02, 2)
   })
 
-  it('counts a sell with no buy on record as all profit, and flags it', () => {
+  it('measures only the units with a buy on record, and flags the sale', () => {
     const result = computeAnalytics([
       tx('2026-01-02', 'Buy', 'MSFT', 1, 300),
-      tx('2026-02-02', 'Sell', 'MSFT', 3, 1500), // 2 of the 3 units have no buy on record
+      tx('2026-02-02', 'Sell', 'MSFT', 3, 1500), // 2 of the 3 units have no buy on record: unknown cost
     ])
-    expect(result.trades[0]).toMatchObject({ basisComplete: false, pnlThb: expect.closeTo(1200) })
+    // The 1 unit on record: 500 of proceeds against its cost of 300. The other 2 units count as nothing.
+    expect(result.trades[0]).toMatchObject({
+      basisComplete: false,
+      recordedShare: expect.closeTo(1 / 3),
+      pnlThb: expect.closeTo(200),
+    })
     expect(result.incompleteBasisTrades).toBe(1)
     expect(result.openPositions).toEqual([])
+    expect(result.realizedPnlThb).toBeCloseTo(200)
+  })
+
+  it('does not count a sale with no buy on record at all, nor rate it a win or loss', () => {
+    const result = computeAnalytics([tx('2026-02-02', 'Sell', 'UNH', 4, 52_000)])
+    expect(result.trades[0]).toMatchObject({ recordedShare: 0, pnlThb: 0, pnlUsd: 0 })
+    expect(result.realizedPnlThb).toBe(0)
+    expect(result.stats.rated).toBe(0)
   })
 
   it('leaves cash-parking ETFs out of the win rate but not the P&L', () => {

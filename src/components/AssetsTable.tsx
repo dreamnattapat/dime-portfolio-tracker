@@ -286,7 +286,10 @@ function AssetHistory({ asset, currency }: { asset: AssetPnl; currency: Currency
                   <TradeBadge kind={e.kind} />
                   {formatDate(e.date)}
                 </span>
-                {realized != null && (
+                {e.kind === 'Sell' && e.recordedShare === 0 && (
+                  <span className="text-muted-foreground text-right text-xs">ไม่ทราบต้นทุน*</span>
+                )}
+                {realized != null && e.recordedShare > 0 && (
                   <span className={`text-right font-semibold tabular-nums ${pnlTone(realized)}`}>
                     {formatSignedMoney(realized, currency)}
                     {!e.basisComplete && '*'}
@@ -351,7 +354,9 @@ function AssetHistory({ asset, currency }: { asset: AssetPnl; currency: Currency
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{formatUnits(e.unitsHeld)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(e.avgCostUsd, 4)}</TableCell>
-                {realized == null ? (
+                {e.kind === 'Sell' && e.recordedShare === 0 ? (
+                  <TableCell className="text-muted-foreground text-right text-xs">ไม่ทราบต้นทุน*</TableCell>
+                ) : realized == null ? (
                   <TableCell className="text-muted-foreground text-right">—</TableCell>
                 ) : (
                   <TableCell className={`text-right tabular-nums ${pnlTone(realized)}`}>
@@ -382,7 +387,7 @@ function AssetHistory({ asset, currency }: { asset: AssetPnl; currency: Currency
           ? 'กำไรของแต่ละการขาย = ยอดรับสุทธิ (หักค่าธรรมเนียมทั้งหมด) − ต้นทุนเฉลี่ย × จำนวนที่ขาย ต้นทุนเฉลี่ยไม่รวมค่าธรรมเนียมตอนซื้อ และไม่เปลี่ยนเมื่อขาย'
           : 'ยังไม่มีการขาย กำไร/ขาดทุนทั้งหมดจึงยังไม่รับรู้'}
         {sells.some((e) => !e.basisComplete) &&
-          ' * ขายมากกว่าที่ซื้อในอีเมล จึงนับส่วนที่ไม่พบรายการซื้อเป็นกำไรทั้งหมด'}
+          ' * ขายมากกว่าที่ซื้อในอีเมล ส่วนที่ไม่พบรายการซื้อไม่ทราบต้นทุน จึงไม่นับเป็นกำไรหรือขาดทุน'}
         {!usd && sells.length > 0 && ' เป็นเงินบาทที่เรทในใบยืนยันการขาย'}
       </p>
     </div>
