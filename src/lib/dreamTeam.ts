@@ -1,6 +1,9 @@
-/** Team Dream's members and the shape of a meeting report (public/dream/reports/<date>.json). */
+/**
+ * Team Dream's members (Peter Lynch style) and the shape of a meeting report
+ * (public/dream/reports/<date>.json).
+ */
 
-export type DreamAgentId = 'atlas' | 'lens' | 'tempo' | 'guard' | 'captain'
+export type DreamAgentId = 'scout' | 'lens' | 'story' | 'guard' | 'captain'
 
 export type DreamAgent = {
   id: DreamAgentId
@@ -14,46 +17,60 @@ export type DreamAgent = {
 
 export const DREAM_AGENTS: DreamAgent[] = [
   {
-    id: 'atlas',
-    name: 'Atlas',
-    thaiName: 'แอตลาส',
-    role: 'นักเศรษฐศาสตร์',
-    focus: 'ดอกเบี้ย เฟด เงินเฟ้อ การจ้างงาน และกลุ่มอุตสาหกรรมที่ตลาดชอบ ตัดสินว่าควรเสี่ยงมากหรือน้อย',
+    id: 'scout',
+    name: 'Scout',
+    thaiName: 'สเกาต์',
+    role: 'นักล่าไอเดีย',
+    focus: 'หาบริษัทที่ลูกค้าจริงกำลังแห่ใช้ ก่อนที่วอลล์สตรีทจะสังเกตเห็น ตามหลัก "ลงทุนในสิ่งที่รู้จัก" ของ Lynch',
   },
   {
     id: 'lens',
     name: 'Lens',
     thaiName: 'เลนส์',
     role: 'นักวิเคราะห์ปัจจัยพื้นฐาน',
-    focus: 'งบการเงิน การประชุมนักวิเคราะห์ (earnings call) แนวโน้มรายได้ กำไร และราคาเทียบมูลค่า',
+    focus: 'ทำการบ้านแบบ Lynch: PEG การเติบโตของกำไร หนี้ เงินสด สินค้าคงคลัง และจัดหุ้นเข้า 6 ประเภท',
   },
   {
-    id: 'tempo',
-    name: 'Tempo',
-    thaiName: 'เทมโป',
-    role: 'นักจับจังหวะและกระแสข่าว',
-    focus: 'แนวโน้มราคา ความแข็งแรงเทียบ S&P 500 ข่าว และเหตุการณ์ที่กำลังจะมา เช่น วันประกาศงบ',
+    id: 'story',
+    name: 'Story',
+    thaiName: 'สตอรี่',
+    role: 'นักเล่าเรื่องและผู้ค้าน',
+    focus: 'เขียน "เรื่องเล่า 2 นาที" ของแต่ละตัว ตรวจว่าเรื่องยังจริงอยู่ไหม และค้านทุกการซื้อที่ฟังดูดีเกินจริง',
   },
   {
     id: 'guard',
     name: 'Guard',
     thaiName: 'การ์ด',
     role: 'ผู้ดูแลความเสี่ยง',
-    focus: 'ขนาดแต่ละตัว การกระจุกตัว เงินสด และวินัยตัดขาดทุน มีสิทธิ์ยับยั้งหรือลดขนาดคำสั่ง',
+    focus: 'ขนาดแต่ละตัว การกระจุกตัว สัดส่วนหุ้นแต่ละประเภท และเหตุการณ์เสี่ยง มีสิทธิ์ยับยั้งหรือลดขนาดคำสั่ง',
   },
   {
     id: 'captain',
     name: 'Captain',
     thaiName: 'กัปตัน',
     role: 'ผู้จัดการพอร์ต',
-    focus: 'ฟังทุกคนแล้วตัดสินใจ ซื้อ ขาย หรือถือ และเขียนสรุปการประชุม',
+    focus: 'ตัดสินใจซื้อ ขาย หรือถือ "รดน้ำดอกไม้ ถอนวัชพืช" และเขียนสรุปการประชุม',
   },
 ]
+
+/** Peter Lynch's six kinds of stock, plus cash parking. */
+export type LynchCategory =
+  'fast-grower' | 'stalwart' | 'slow-grower' | 'cyclical' | 'turnaround' | 'asset-play' | 'cash'
+
+export const LYNCH_CATEGORIES: Record<LynchCategory, string> = {
+  'fast-grower': 'โตเร็ว',
+  stalwart: 'แกร่ง',
+  'slow-grower': 'โตช้า',
+  cyclical: 'วัฏจักร',
+  turnaround: 'พลิกฟื้น',
+  'asset-play': 'สินทรัพย์ซ่อนค่า',
+  cash: 'พักเงิน',
+}
 
 export type DreamMemo = {
   agent: DreamAgentId
   title: string
-  /** Atlas: risk-on / neutral / risk-off; others may give a one-word view too. */
+  /** An optional one-word view. */
   stance?: string
   points: string[]
   sources?: { title: string; url: string }[]
@@ -64,7 +81,13 @@ export type DreamDecision = {
   action: 'buy' | 'sell' | 'hold' | 'watch'
   /** The order in ledger.json, for buys and sells. */
   orderId?: string
+  /** Lynch's category, for anything bought or held. */
+  category?: LynchCategory
   why: string
+  /** The two-minute story, for buys and holds. */
+  story?: string
+  /** What would make the team sell. */
+  sellIf?: string
 }
 
 export type DreamReport = {

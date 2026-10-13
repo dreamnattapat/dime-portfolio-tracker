@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 
 import type { DreamLedger } from '../src/lib/dream.ts'
-import { DREAM_AGENTS, type DreamReport } from '../src/lib/dreamTeam.ts'
+import { DREAM_AGENTS, LYNCH_CATEGORIES, type DreamReport } from '../src/lib/dreamTeam.ts'
 
 const problems: string[] = []
 const fail = (message: string) => problems.push(message)
@@ -30,6 +30,8 @@ const state = existsSync('public/dream/state.json')
   : null
 
 if (ledger) {
+  if (ledger.orders.some((o) => o.usd != null && o.usd < 200 && o.side === 'buy'))
+    fail('every buy must be at least $200')
   if (!ISO.test(ledger.startDate)) fail('ledger.startDate must be YYYY-MM-DD')
   const ids = new Set<string>()
   for (const o of ledger.orders) {
@@ -46,6 +48,14 @@ if (ledger) {
     if (o.side !== 'buy' && o.side !== 'sell') fail(`${where}: side must be buy or sell`)
     if (!o.reason?.trim()) fail(`${where}: needs a reason`)
     if (index && !index.reports.includes(o.reportDate)) fail(`${where}: no report for ${o.reportDate}`)
+  }
+
+  // At most 6 orders a meeting (10 in the first one, which builds the portfolio).
+  if (index) {
+    for (const [i, date] of index.reports.entries()) {
+      const count = ledger.orders.filter((o) => o.reportDate === date).length
+      if (count > (i === 0 ? 10 : 6)) fail(`meeting ${date}: ${count} orders, more than the limit`)
+    }
   }
 
   // The latest meeting's buys can't spend more than the cash plus what its sells raise.
@@ -84,8 +94,18 @@ if (index) {
       for (const s of memo?.sources ?? [])
         if (!/^https?:\/\//.test(s.url)) fail(`${where}: ${id} source url "${s.url}"`)
     }
+    // Lynch: every stock bought or held has a category and a two-minute story.
     for (const d of report.decisions ?? []) {
       if (!['buy', 'sell', 'hold', 'watch'].includes(d.action)) fail(`${where}: decision action "${d.action}"`)
+      if (d.category && !(d.category in LYNCH_CATEGORIES)) fail(`${where}: ${d.ticker} category "${d.category}"`)
+      if ((d.action === 'buy' || d.action === 'hold') && !d.category)
+        fail(`${where}: ${d.ticker} needs a Lynch category`)
+      if (
+        (d.action === 'buy' || d.action === 'hold') &&
+        d.category !== 'cash' &&
+        !(d.story?.trim() && d.sellIf?.trim())
+      )
+        fail(`${where}: ${d.ticker} needs its two-minute story and sellIf`)
       if (d.orderId && ledger && !ledger.orders.some((o) => o.id === d.orderId))
         fail(`${where}: decision points to order ${d.orderId}, not in the ledger`)
     }

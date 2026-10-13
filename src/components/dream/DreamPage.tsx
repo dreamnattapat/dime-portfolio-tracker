@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { fetchDreamJson, useDream, type DreamData } from '@/hooks/useDream'
 import type { DreamFill } from '@/lib/dream'
-import { DREAM_AGENTS, type DreamReport } from '@/lib/dreamTeam'
+import { DREAM_AGENTS, LYNCH_CATEGORIES, type DreamReport, type LynchCategory } from '@/lib/dreamTeam'
 import { formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '@/lib/format'
 
 /** Team Dream's public page: the team, the score against the S&P 500, and every meeting. */
@@ -28,11 +28,12 @@ export function DreamPage() {
         ส่องพอร์ต Dime
       </a>
       <header className="space-y-2">
-        <p className="text-brand text-sm font-semibold">ความท้าทาย</p>
+        <p className="text-brand text-sm font-semibold">ความท้าทาย · สไตล์ Peter Lynch</p>
         <h1 className="font-display text-3xl font-medium sm:text-4xl">ทีม Dream</h1>
         <p className="text-muted-foreground max-w-2xl leading-relaxed">
-          ทีม AI 5 ตัว บริหารพอร์ตเงินสมมติ ${formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)}{' '}
-          โดยมีเป้าหมายเดียว: ชนะ S&P 500 ประชุมทุกวันทำการก่อนตลาดสหรัฐฯ เปิด และซื้อขายที่ราคาปิดของคืนนั้น
+          ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch ด้วยเงินสมมติ $
+          {formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)} เป้าหมายเดียว: ชนะ S&P 500
+          ตามล่าหุ้นที่โตได้หลายเท่า (multi-bagger) ประชุมทุกวันจันทร์ก่อนตลาดสหรัฐฯ เปิด และซื้อขายที่ราคาปิดของคืนนั้น
         </p>
       </header>
 
@@ -48,7 +49,7 @@ export function DreamPage() {
           empty={!latestDate}
         />
       )}
-      {data && <Holdings data={data} />}
+      {data && <Holdings data={data} report={latest} />}
       {data && data.reports.length > 1 && <PastMeetings dates={data.reports.slice(0, -1).toReversed()} data={data} />}
       {data && data.state.fills.length > 0 && <TradeLog fills={data.state.fills} />}
       <Rules />
@@ -195,11 +196,34 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
           {report.decisions.map((d, i) => {
             const fill = d.orderId ? byId.get(d.orderId) : undefined
             return (
-              <li key={`${d.ticker}-${i}`} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-4 py-3 text-sm">
-                <span className="w-16 shrink-0 font-semibold">{d.ticker}</span>
-                <DecisionBadge action={d.action} />
-                <span className="text-muted-foreground min-w-0 flex-1 basis-60 leading-relaxed">{d.why}</span>
-                {fill && <FillStatus fill={fill} />}
+              <li key={`${d.ticker}-${i}`} className="space-y-1.5 px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                  <span className="w-16 shrink-0 font-semibold">{d.ticker}</span>
+                  <DecisionBadge action={d.action} />
+                  {d.category && <CategoryChip category={d.category} />}
+                  <span className="text-muted-foreground min-w-0 flex-1 basis-60 leading-relaxed">{d.why}</span>
+                  {fill && <FillStatus fill={fill} />}
+                </div>
+                {d.story && (
+                  <details className="group/story">
+                    <summary className="text-brand cursor-pointer list-none text-xs font-medium [&::-webkit-details-marker]:hidden">
+                      เรื่องเล่า 2 นาที
+                      <ChevronDown
+                        className="ml-0.5 inline size-3 transition-transform group-open/story:rotate-180"
+                        aria-hidden
+                      />
+                    </summary>
+                    <div className="bg-muted/60 mt-2 space-y-2 rounded-xl px-3 py-2 text-xs leading-relaxed">
+                      <p>{d.story}</p>
+                      {d.sellIf && (
+                        <p>
+                          <span className="font-semibold">ขายเมื่อ: </span>
+                          {d.sellIf}
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                )}
               </li>
             )
           })}
@@ -212,7 +236,7 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
           const memo = report.memos.find((m) => m.agent === agent.id)
           if (!memo) return null
           return (
-            <details key={agent.id} className="group rounded-2xl border px-4 py-3" open={agent.id === 'atlas'}>
+            <details key={agent.id} className="group rounded-2xl border px-4 py-3" open={agent.id === 'story'}>
               <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
                 <AgentAvatar agent={agent.id} size="sm" />
                 <span className="min-w-0 flex-1">
@@ -275,6 +299,14 @@ const ACTIONS = {
   watch: { label: 'จับตา', className: 'bg-muted text-muted-foreground' },
 } as const
 
+function CategoryChip({ category }: { category: LynchCategory }) {
+  return (
+    <span className="border-border text-muted-foreground shrink-0 rounded-full border px-2 py-0.5 text-xs">
+      {LYNCH_CATEGORIES[category] ?? category}
+    </span>
+  )
+}
+
 function DecisionBadge({ action }: { action: keyof typeof ACTIONS }) {
   const { label, className } = ACTIONS[action] ?? ACTIONS.watch
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
@@ -296,8 +328,10 @@ function FillStatus({ fill }: { fill: DreamFill }) {
   )
 }
 
-function Holdings({ data }: { data: DreamData }) {
+function Holdings({ data, report }: { data: DreamData; report: DreamReport | null }) {
   const { state } = data
+  // Each holding's Lynch category, from the latest meeting.
+  const category = new Map(report?.decisions.filter((d) => d.category).map((d) => [d.ticker, d.category!]))
   return (
     <Card>
       <CardHeader>
@@ -320,7 +354,14 @@ function Holdings({ data }: { data: DreamData }) {
           <TableBody>
             {state.holdings.map((h) => (
               <TableRow key={h.ticker}>
-                <TableCell className="font-medium">{h.ticker}</TableCell>
+                <TableCell>
+                  <span className="font-medium">{h.ticker}</span>
+                  {category.get(h.ticker) && (
+                    <span className="text-muted-foreground block text-xs">
+                      {LYNCH_CATEGORIES[category.get(h.ticker)!]}
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{formatPercent(h.weightPct)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(h.units, 4)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(h.avgCostUsd)}</TableCell>
@@ -470,13 +511,30 @@ function Rules() {
       <CardHeader>
         <CardTitle>กติกา</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm leading-relaxed">
+      <CardContent className="space-y-4 text-sm leading-relaxed">
+        <div className="space-y-1.5">
+          <h3 className="font-semibold">หลักของ Peter Lynch ที่ทีมใช้</h3>
+          <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
+            <li>ลงทุนในสิ่งที่เข้าใจ ต้องเล่าได้ใน 2 นาทีว่าทำไมซื้อ และอะไรจะทำให้ผิด</li>
+            <li>
+              จัดหุ้นเป็น 6 ประเภท: โตเร็ว แกร่ง โตช้า วัฏจักร พลิกฟื้น สินทรัพย์ซ่อนค่า แต่ละแบบมีเหตุผลซื้อขายต่างกัน
+            </li>
+            <li>ชอบ PEG (P/E หารการเติบโตของกำไร) ราว 1 หรือต่ำกว่า หนี้น้อย และสินค้าคงคลังไม่โตเร็วกว่ายอดขาย</li>
+            <li>เลี่ยงหุ้นร้อนในอุตสาหกรรมร้อน และบริษัทที่ซื้อกิจการนอกเรื่อง</li>
+            <li>รดน้ำดอกไม้ ถอนวัชพืช: ถือตัวที่เรื่องเล่ายังดีไว้ ขายเมื่อเรื่องเล่าเปลี่ยน ไม่ใช่เพราะราคาแกว่ง</li>
+          </ul>
+        </div>
+        <h3 className="font-semibold">กติกา</h3>
         <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
           <li>เงินสมมติ ไม่ใช่เงินจริง และไม่ใช่คำแนะนำการลงทุน</li>
           <li>ประชุมก่อนตลาดสหรัฐฯ เปิด แล้วซื้อขายที่ราคาปิดของคืนนั้น จึงไม่มีทางรู้ราคาที่ซื้อขายล่วงหน้า</li>
           <li>เสียค่าคอมมิชชันแบบ Dime! (0.15% + VAT 7%) ทุกครั้งที่ซื้อขาย</li>
-          <li>ซื้อหุ้นและ ETF ในสหรัฐฯ เท่านั้น ไม่ยืมเงิน ไม่ short ไม่ใช้ออปชันหรือ ETF แบบมีเลเวอเรจ</li>
-          <li>หุ้นตัวเดียวไม่เกิน 20% ของพอร์ต ไม่เกิน 6 คำสั่งต่อการประชุม</li>
+          <li>ซื้อหุ้นในสหรัฐฯ มูลค่าตลาด $500 ล้านขึ้นไป ไม่ยืมเงิน ไม่ short ไม่ใช้ออปชัน ใช้ ETF เฉพาะพักเงิน</li>
+          <li>หุ้นตัวเดียวไม่เกิน 20% กลุ่มเดียวไม่เกิน 40% หุ้นโตเร็วรวมไม่เกิน 70% ของเงินที่ลงในหุ้น</li>
+          <li>
+            ไม่เกิน 6 คำสั่งต่อการประชุม (ครั้งแรก 10) และไม่ขายหุ้นที่เพิ่งซื้อไม่ถึง 4 สัปดาห์
+            เว้นแต่เรื่องเล่าเปลี่ยน
+          </li>
           <li>เทียบกับการซื้อ SPY ด้วยเงินเท่ากันที่ราคาปิดวันแรกแล้วถือไว้ ไม่รวมเงินปันผลทั้งสองฝั่ง</li>
           <li>ทุกตัวเลขในบันทึกต้องมีแหล่งที่มา หาได้จากลิงก์ใต้บันทึกของแต่ละคน</li>
         </ul>
