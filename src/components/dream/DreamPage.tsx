@@ -8,7 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { fetchDreamJson, useDream, type DreamData } from '@/hooks/useDream'
 import type { DreamFill } from '@/lib/dream'
-import { DREAM_AGENTS, LYNCH_CATEGORIES, type DreamReport, type LynchCategory } from '@/lib/dreamTeam'
+import {
+  DREAM_AGENTS,
+  LYNCH_CATEGORIES,
+  type DreamLesson,
+  type DreamReport,
+  type DreamRetro,
+  type LynchCategory,
+} from '@/lib/dreamTeam'
 import { formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '@/lib/format'
 
 /** Team Dream's public page: the team, the score against the S&P 500, and every meeting. */
@@ -50,6 +57,7 @@ export function DreamPage() {
         />
       )}
       {data && <Holdings data={data} report={latest} />}
+      <Lessons />
       {data && data.reports.length > 1 && <PastMeetings dates={data.reports.slice(0, -1).toReversed()} data={data} />}
       {data && data.state.fills.length > 0 && <TradeLog fills={data.state.fills} />}
       <Rules />
@@ -201,6 +209,14 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                   <span className="w-16 shrink-0 font-semibold">{d.ticker}</span>
                   <DecisionBadge action={d.action} />
                   {d.category && <CategoryChip category={d.category} />}
+                  {d.lessons?.map((id) => (
+                    <span
+                      key={id}
+                      className="bg-series-dream/10 text-series-dream shrink-0 rounded-full px-2 py-0.5 text-xs"
+                    >
+                      ใช้บทเรียน {id}
+                    </span>
+                  ))}
                   <span className="text-muted-foreground min-w-0 flex-1 basis-60 leading-relaxed">{d.why}</span>
                   {fill && <FillStatus fill={fill} />}
                 </div>
@@ -538,6 +554,130 @@ function Rules() {
           <li>เทียบกับการซื้อ SPY ด้วยเงินเท่ากันที่ราคาปิดวันแรกแล้วถือไว้ ไม่รวมเงินปันผลทั้งสองฝั่ง</li>
           <li>ทุกตัวเลขในบันทึกต้องมีแหล่งที่มา หาได้จากลิงก์ใต้บันทึกของแต่ละคน</li>
         </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
+const LESSON_STATUS = {
+  rule: { label: 'กฎ', className: 'bg-series-dream text-white' },
+  candidate: { label: 'กำลังพิสูจน์', className: 'bg-series-dream/10 text-series-dream' },
+  retired: { label: 'เลิกใช้', className: 'bg-muted text-muted-foreground' },
+} as const
+
+const VERDICTS = {
+  right: { label: 'ตัดสินใจถูก', className: 'bg-delta-up/10 text-delta-up' },
+  wrong: { label: 'ตัดสินใจผิด', className: 'bg-delta-down/10 text-delta-down' },
+  lucky: { label: 'โชคช่วย', className: 'bg-muted text-foreground' },
+  unlucky: { label: 'โชคไม่ดี', className: 'bg-muted text-foreground' },
+  'too-early': { label: 'ยังเร็วไป', className: 'bg-muted text-muted-foreground' },
+} as const
+
+/** The team's knowledge base and its latest weekly look back: how it learns from its own results. */
+function Lessons() {
+  const [lessons, setLessons] = useState<DreamLesson[] | null>(null)
+  const [retro, setRetro] = useState<DreamRetro | null>(null)
+  useEffect(() => {
+    fetchDreamJson<{ lessons: DreamLesson[] }>('/dream/lessons.json').then(
+      (l) => setLessons(l.lessons),
+      () => {},
+    )
+    fetchDreamJson<{ retros: string[] }>('/dream/retros/index.json').then(
+      (index) => {
+        const date = index.retros.at(-1)
+        if (date) fetchDreamJson<DreamRetro>(`/dream/retros/${date}.json`).then(setRetro, () => {})
+      },
+      () => {},
+    )
+  }, [])
+  if (!lessons) return null
+  const order = { rule: 0, candidate: 1, retired: 2 }
+  const sorted = lessons.toSorted((a, b) => order[a.status] - order[b.status] || a.id.localeCompare(b.id))
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>บทเรียนของทีม</CardTitle>
+        <CardDescription>
+          ทุกวันเสาร์ ทีมย้อนดูการตัดสินใจที่ผ่านมา (รวมหุ้นที่ไม่ได้ซื้อ) เทียบกับ S&P 500
+          แล้วจดบทเรียนไว้ใช้ครั้งต่อไป บทเรียนใหม่เริ่มจาก &ldquo;กำลังพิสูจน์&rdquo; และกลายเป็น &ldquo;กฎ&rdquo;
+          เมื่อมีกรณีที่สองยืนยัน
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {retro && (
+          <div className="bg-muted/60 space-y-3 rounded-2xl px-4 py-3 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs">ทบทวนล่าสุด {formatDate(retro.date)}</p>
+              <p className="font-semibold">{retro.headline}</p>
+              <p className="text-muted-foreground mt-1 leading-relaxed">{retro.summary}</p>
+            </div>
+            {retro.reviews.length > 0 && (
+              <ul className="space-y-1.5">
+                {retro.reviews.map((r, i) => (
+                  <li key={`${r.ticker}-${i}`} className="flex flex-wrap items-start gap-x-2 gap-y-1">
+                    <span className="w-14 shrink-0 font-semibold">{r.ticker}</span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${VERDICTS[r.verdict].className}`}
+                    >
+                      {VERDICTS[r.verdict].label}
+                    </span>
+                    {r.vsSpyPct != null && (
+                      <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                        {formatPercent(r.vsSpyPct, { signed: true })} เทียบ S&P 500
+                      </span>
+                    )}
+                    <span className="text-muted-foreground min-w-0 flex-1 basis-60 text-xs leading-relaxed">
+                      {r.note}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {sorted.length === 0 ? (
+          <p className="text-muted-foreground text-sm">ยังไม่มีบทเรียน</p>
+        ) : (
+          <ul className="space-y-2">
+            {sorted.map((l) => (
+              <li key={l.id}>
+                <details className={`group rounded-2xl border px-4 py-3 ${l.status === 'retired' ? 'opacity-60' : ''}`}>
+                  <summary className="flex cursor-pointer list-none items-start gap-3 [&::-webkit-details-marker]:hidden">
+                    <span className="text-muted-foreground w-10 shrink-0 pt-0.5 text-xs font-semibold">{l.id}</span>
+                    <span className="min-w-0 flex-1 text-sm font-medium">{l.title}</span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${LESSON_STATUS[l.status].className}`}
+                    >
+                      {LESSON_STATUS[l.status].label}
+                    </span>
+                    <ChevronDown
+                      className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-180"
+                      aria-hidden
+                    />
+                  </summary>
+                  <div className="mt-3 space-y-2 pl-13 text-sm leading-relaxed">
+                    <p className="text-muted-foreground">{l.detail}</p>
+                    <p className="text-muted-foreground text-xs">
+                      ใช้โดย {l.appliesTo.map((a) => DREAM_AGENTS.find((g) => g.id === a)?.name ?? a).join(', ')}
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      {l.evidence.map((e, i) => (
+                        <li key={i}>
+                          <span className="font-medium">
+                            {e.kind === 'origin' ? 'ที่มา' : e.kind === 'confirmed' ? 'ยืนยัน' : 'ค้าน'}{' '}
+                            {formatDate(e.date)}
+                            {e.ticker ? ` · ${e.ticker}` : ''}:
+                          </span>{' '}
+                          <span className="text-muted-foreground">{e.note}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   )

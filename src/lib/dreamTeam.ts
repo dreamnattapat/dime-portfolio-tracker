@@ -88,6 +88,8 @@ export type DreamDecision = {
   story?: string
   /** What would make the team sell. */
   sellIf?: string
+  /** Lessons (lessons.json ids) this decision applied. */
+  lessons?: string[]
 }
 
 export type DreamReport = {
@@ -102,4 +104,49 @@ export type DreamReport = {
   decisions: DreamDecision[]
   /** What the team will watch before the next meeting. */
   nextWatch?: string[]
+}
+
+/**
+ * What the team has learned from its own results (public/dream/lessons.json).
+ * Plain words, not tied to any AI model: whoever runs the next meeting reads
+ * and applies them. A lesson starts as a candidate, becomes a binding rule once
+ * a second, separate case confirms it, and is retired if it proves wrong.
+ */
+export type DreamLesson = {
+  /** L001, L002, ... */
+  id: string
+  status: 'candidate' | 'rule' | 'retired'
+  /** The lesson as a short check to apply, in Thai. */
+  title: string
+  /** Why, and how to apply it, in Thai. */
+  detail: string
+  /** Who applies it most. */
+  appliesTo: DreamAgentId[]
+  created: string
+  updated: string
+  /** The cases behind it, newest last. */
+  evidence: { date: string; ticker?: string; note: string; kind: 'origin' | 'confirmed' | 'contradicted' }[]
+}
+
+/** A weekly look back (public/dream/retros/<date>.json). */
+export type DreamRetro = {
+  date: string
+  headline: string
+  /** What went right and wrong this week, in Thai. */
+  summary: string
+  /** Dream vs SPY since the start and over the past week, %. */
+  score: { dreamPct: number; spyPct: number; weekDreamPct?: number; weekSpyPct?: number }
+  /** Past decisions judged by process and outcome. */
+  reviews: {
+    ticker: string
+    reportDate: string
+    action: string
+    returnPct?: number
+    vsSpyPct?: number
+    /** right: good call; wrong: bad call; lucky: good result, bad reasoning; unlucky: bad result, sound reasoning; too-early: wait. */
+    verdict: 'right' | 'wrong' | 'lucky' | 'unlucky' | 'too-early'
+    note: string
+  }[]
+  /** What changed in lessons.json. */
+  lessonChanges: { id: string; change: 'added' | 'confirmed' | 'contradicted' | 'promoted' | 'retired'; note: string }[]
 }

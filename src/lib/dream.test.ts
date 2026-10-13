@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeDream, lastClosedSession, type DreamLedger, type DreamOrder } from './dream'
+import { computeDream, decisionOutcomes, lastClosedSession, type DreamLedger, type DreamOrder } from './dream'
 import { PriceSeries } from './prices'
 
 const days = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15']
@@ -130,5 +130,40 @@ describe('lastClosedSession', () => {
     expect(lastClosedSession(new Date('2026-10-13T15:30:00Z'))).toBe('2026-10-12')
     // 04:30 Bangkok next day = 17:30 New York: closed.
     expect(lastClosedSession(new Date('2026-10-13T21:30:00Z'))).toBe('2026-10-13')
+  })
+})
+
+describe('decisionOutcomes', () => {
+  const nvda = series('NVDA', [50, 55, 60, 66], 70)
+  it("measures each decision from its session's close against SPY", () => {
+    const [buy, watch] = decisionOutcomes(
+      [
+        { reportDate: '2026-10-12', session: '2026-10-12', ticker: 'NVDA', action: 'buy' },
+        { reportDate: '2026-10-12', session: '2026-10-11', ticker: 'NVDA', action: 'watch' },
+      ],
+      spy,
+      new Map([['NVDA', nvda]]),
+      '2026-10-14',
+    )
+    // 50 -> 60 while SPY went 100 -> 110: +20% vs +10%.
+    expect(buy).toMatchObject({ fromDate: '2026-10-12', toDate: '2026-10-14', sessions: 2 })
+    expect(buy.returnPct).toBeCloseTo(20)
+    expect(buy.vsSpyPct).toBeCloseTo(10)
+    // A weekend session date counts from the next session.
+    expect(watch.fromDate).toBe('2026-10-12')
+  })
+
+  it('skips decisions whose session has not closed, or without prices', () => {
+    expect(
+      decisionOutcomes(
+        [
+          { reportDate: '2026-10-15', session: '2026-10-15', ticker: 'NVDA', action: 'buy' },
+          { reportDate: '2026-10-12', session: '2026-10-12', ticker: 'GONE', action: 'watch' },
+        ],
+        spy,
+        new Map([['NVDA', nvda]]),
+        '2026-10-14',
+      ),
+    ).toEqual([])
   })
 })

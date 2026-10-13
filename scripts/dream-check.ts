@@ -1,6 +1,6 @@
 /**
  * Checks Team Dream's files before a meeting's results are committed:
- * the ledger's orders, the reports and their index. Prints every problem and
+ * the ledger's orders, the reports, the lessons and the weekly look-backs. Prints every problem and
  * exits 1 if there is one, so a bad meeting never reaches the website.
  *
  *   node scripts/dream-check.ts
@@ -8,7 +8,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 
 import type { DreamLedger } from '../src/lib/dream.ts'
-import { DREAM_AGENTS, LYNCH_CATEGORIES, type DreamReport } from '../src/lib/dreamTeam.ts'
+import {
+  DREAM_AGENTS,
+  LYNCH_CATEGORIES,
+  type DreamLesson,
+  type DreamReport,
+  type DreamRetro,
+} from '../src/lib/dreamTeam.ts'
 
 const problems: string[] = []
 const fail = (message: string) => problems.push(message)
@@ -110,6 +116,53 @@ if (index) {
         fail(`${where}: decision points to order ${d.orderId}, not in the ledger`)
     }
   }
+}
+
+// The knowledge base: lessons only become binding rules with a second, separate case behind them.
+const lessons = existsSync('public/dream/lessons.json')
+  ? (read<{ lessons: DreamLesson[] }>('public/dream/lessons.json')?.lessons ?? [])
+  : []
+const lessonIds = new Set<string>()
+for (const l of lessons) {
+  const where = `lesson ${l.id}`
+  if (!/^L\d{3}$/.test(l.id) || lessonIds.has(l.id)) fail(`${where}: id must be L001-style and unique`)
+  lessonIds.add(l.id)
+  if (!['candidate', 'rule', 'retired'].includes(l.status)) fail(`${where}: status "${l.status}"`)
+  if (!l.title?.trim() || !l.detail?.trim()) fail(`${where}: needs a title and detail`)
+  if (!l.appliesTo?.length || l.appliesTo.some((a) => !DREAM_AGENTS.some((g) => g.id === a)))
+    fail(`${where}: appliesTo must name team members`)
+  if (!l.evidence?.length || l.evidence[0].kind !== 'origin') fail(`${where}: evidence must start with its origin`)
+  const confirmed = l.evidence?.filter((e) => e.kind === 'confirmed').length ?? 0
+  if (l.status === 'rule' && confirmed < 1)
+    fail(`${where}: a rule needs at least one confirming case besides its origin`)
+}
+if (index) {
+  for (const date of index.reports) {
+    const report = read<DreamReport>(`public/dream/reports/${date}.json`)
+    for (const d of report?.decisions ?? [])
+      for (const id of d.lessons ?? [])
+        if (!lessons.some((l) => l.id === id && l.status !== 'retired'))
+          fail(`report ${date}: ${d.ticker} applies lesson ${id}, which isn't an active lesson`)
+  }
+}
+const retros = existsSync('public/dream/retros/index.json')
+  ? read<{ retros: string[] }>('public/dream/retros/index.json')
+  : { retros: [] }
+for (const date of retros?.retros ?? []) {
+  const retro = read<DreamRetro>(`public/dream/retros/${date}.json`)
+  if (!retro) continue
+  const where = `retro ${date}`
+  if (retro.date !== date) fail(`${where}: date field doesn't match the file name`)
+  if (!retro.headline?.trim() || !retro.summary?.trim()) fail(`${where}: needs headline and summary`)
+  if (typeof retro.score?.dreamPct !== 'number' || typeof retro.score?.spyPct !== 'number')
+    fail(`${where}: needs score`)
+  for (const r of retro.reviews ?? [])
+    if (!['right', 'wrong', 'lucky', 'unlucky', 'too-early'].includes(r.verdict))
+      fail(`${where}: ${r.ticker} verdict "${r.verdict}"`)
+  if ((retro.lessonChanges ?? []).filter((c) => c.change === 'added').length > 2)
+    fail(`${where}: at most 2 new lessons a week`)
+  for (const c of retro.lessonChanges ?? [])
+    if (!lessonIds.has(c.id)) fail(`${where}: lesson ${c.id} isn't in lessons.json`)
 }
 
 if (problems.length) {

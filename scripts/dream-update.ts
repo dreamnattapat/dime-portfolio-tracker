@@ -1,14 +1,16 @@
 /**
  * Fills Team Dream's orders at the latest closing prices and writes
- * public/dream/state.json: cash, holdings, every order's fill and the value
- * against SPY. Run by the GitHub Action after each US close, so the agents
+ * public/dream/state.json: cash, holdings, every order's fill, the value
+ * against SPY day by day, and how every decision in every meeting (including
+ * stocks only watched or passed on) has done since, for the weekly lessons. Run by the GitHub Action after each US close, so the agents
  * start their next meeting from up-to-date numbers.
  *
  *   node scripts/dream-update.ts
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 
-import { computeDream, lastClosedSession, type DreamLedger } from '../src/lib/dream.ts'
+import { computeDream, decisionOutcomes, lastClosedSession, type DreamLedger } from '../src/lib/dream.ts'
+import type { DreamReport } from '../src/lib/dreamTeam.ts'
 import { parseChart, yahooSymbol, type PriceSeries } from '../src/lib/prices.ts'
 
 const LEDGER = 'public/dream/ledger.json'
@@ -32,7 +34,17 @@ const ledger = JSON.parse(readFileSync(LEDGER, 'utf8')) as DreamLedger
 const now = new Date()
 const today = now.toISOString().slice(0, 10)
 const closedThrough = lastClosedSession(now)
-const tickers = [...new Set(ledger.orders.map((o) => o.ticker))]
+const index = JSON.parse(readFileSync('public/dream/reports/index.json', 'utf8')) as { reports: string[] }
+const decisions = index.reports.flatMap((date) => {
+  const report = JSON.parse(readFileSync(`public/dream/reports/${date}.json`, 'utf8')) as DreamReport
+  return report.decisions.map((d) => ({
+    reportDate: date,
+    session: report.session,
+    ticker: d.ticker,
+    action: d.action,
+  }))
+})
+const tickers = [...new Set([...ledger.orders.map((o) => o.ticker), ...decisions.map((d) => d.ticker)])]
 const spy = await fetchSeries('SPY', ledger.startDate, today)
 const prices = new Map<string, PriceSeries | null>(
   await Promise.all(
@@ -47,6 +59,7 @@ const prices = new Map<string, PriceSeries | null>(
   ),
 )
 const state = computeDream(ledger, spy, prices, today, closedThrough)
+const outcomes = decisionOutcomes(decisions, spy, prices, closedThrough)
 const round = (x: number, d = 4) => Math.round(x * 10 ** d) / 10 ** d
 writeFileSync(
   STATE,
@@ -81,6 +94,15 @@ writeFileSync(
         note: f.note,
       })),
       missing: state.missing,
+      points: state.points.map((p) => ({ date: p.date, valueUsd: round(p.value, 2), spyUsd: round(p.spy, 2) })),
+      outcomes: outcomes.map((o) => ({
+        ...o,
+        fromPrice: round(o.fromPrice),
+        toPrice: round(o.toPrice),
+        returnPct: round(o.returnPct, 2),
+        spyReturnPct: round(o.spyReturnPct, 2),
+        vsSpyPct: round(o.vsSpyPct, 2),
+      })),
     },
     null,
     1,

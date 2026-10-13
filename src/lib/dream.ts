@@ -255,3 +255,63 @@ export function computeDream(
     missing,
   }
 }
+
+/** One decision from a meeting (buy, sell, hold or watch) and how the stock has done since. */
+export type DecisionOutcome = {
+  reportDate: string
+  ticker: string
+  action: string
+  /** The close of the session the meeting traded at (the first one on or after `session`). */
+  fromDate: string
+  fromPrice: number
+  /** The latest close counted (up to `closedThrough`). */
+  toDate: string
+  toPrice: number
+  returnPct: number
+  /** SPY over the same days. */
+  spyReturnPct: number
+  /** returnPct - spyReturnPct: how the call did against just owning the index. */
+  vsSpyPct: number
+  /** US sessions since the decision. */
+  sessions: number
+}
+
+/**
+ * How each decision has played out since, against SPY: the material for the
+ * team's weekly lessons. Includes stocks the team only watched or passed on,
+ * so it can learn from what it didn't buy too. Undefined until the decision's
+ * session has closed; tickers without prices are left out.
+ */
+export function decisionOutcomes(
+  decisions: { reportDate: string; session: string; ticker: string; action: string }[],
+  spy: PriceSeries,
+  prices: Map<string, PriceSeries | null>,
+  closedThrough: string,
+): DecisionOutcome[] {
+  const sessions = spy.dates.filter((d) => d <= closedThrough)
+  const out: DecisionOutcome[] = []
+  for (const d of decisions) {
+    const series = prices.get(d.ticker)
+    const from = sessions.find((s) => s >= d.session)
+    const to = sessions.at(-1)
+    if (!series || !from || !to) continue
+    const fromPrice = series.on(from)
+    const toPrice = series.on(to)
+    const returnPct = (toPrice / fromPrice - 1) * 100
+    const spyReturnPct = (spy.on(to) / spy.on(from) - 1) * 100
+    out.push({
+      reportDate: d.reportDate,
+      ticker: d.ticker,
+      action: d.action,
+      fromDate: from,
+      fromPrice,
+      toDate: to,
+      toPrice,
+      returnPct,
+      spyReturnPct,
+      vsSpyPct: returnPct - spyReturnPct,
+      sessions: sessions.filter((s) => s > from).length,
+    })
+  }
+  return out
+}

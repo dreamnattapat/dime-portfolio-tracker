@@ -47,20 +47,41 @@ This file is the whole brief for a meeting. Follow it exactly.
 - `public/dream/state.json`: cash, holdings, prices, each order's fill, the return vs SPY. Written by the GitHub Action after each US close. **Read it; don't edit it.**
 - `public/dream/reports/<YYYY-MM-DD>.json`: one meeting report per date (Bangkok date). Shape: `DreamReport` in `src/lib/dreamTeam.ts`.
 - `public/dream/reports/index.json`: `{ "reports": [dates, oldest first] }`.
+- `public/dream/lessons.json`: **the team's knowledge base**, what it has learned from its own results (shape: `DreamLesson` in `src/lib/dreamTeam.ts`). It belongs to the team, not to any AI model: whoever runs a meeting reads and applies it.
+- `public/dream/retros/<YYYY-MM-DD>.json` and `retros/index.json`: the weekly look-backs (shape: `DreamRetro`).
+- `state.json` → `outcomes`: how every decision ever made (bought, held, sold, watched or passed on) has done since its session's close, against SPY over the same days. Computed by the Action from market prices.
 
 ## How a meeting runs (weekly, Mondays before the US open)
 
 1. **Get ready.** `git pull --rebase origin main`. Today is the Bangkok date. If `public/dream/reports/<today>.json` exists, stop. If the US market is closed today (holiday), hold the meeting anyway; orders fill at the next session.
-2. **Read** `state.json`, `ledger.json` and the last three reports: what we own, each holding's category, story and "sell if", and what we said we'd watch.
-3. **Research, in parallel.** Run Scout and Lens as subagents if you can (give each its row of the team table, Lynch's principles, the holdings and the rules; ask for JSON in Thai with sources): Scout brings up to 6 new ideas with real-world evidence; Lens updates the checklist for every holding and the new ideas. Then Story reviews every holding ("is the story intact? has a 'sell if' happened?") and the best new ideas (two-minute drills, red flags). Otherwise play each role in turn. Use web search for this week's information.
+2. **Read** `state.json`, `ledger.json`, the last three reports, `lessons.json` and the latest retro: what we own, each holding's category, story and "sell if", what we said we'd watch, and what we've learned.
+3. **Research, in parallel.** Run Scout and Lens as subagents if you can (give each its row of the team table, Lynch's principles, the holdings and the rules; ask for JSON in Thai with sources): Scout brings up to 6 new ideas with real-world evidence; Lens updates the checklist for every holding and the new ideas. Then Story reviews every holding ("is the story intact? has a 'sell if' happened?") and the best new ideas (two-minute drills, red flags). Otherwise play each role in turn. Use web search for this week's information. **Give every agent the active lessons that apply to them** (status `rule` or `candidate`, by `appliesTo`).
 4. **Captain's proposal:** what to buy, add to, trim or sell, and sizes that fit the rules. Prefer adding to flowers over chasing new names; replace weeds.
-5. **Guard's review** of each order and the resulting portfolio. Apply Guard's changes.
+5. **Guard's review** of each order and the resulting portfolio, including every lesson with status `rule` (rules are binding, like the rules of the challenge; candidates are strong advice). Apply Guard's changes.
 6. **Write the results.**
    - Append orders to `ledger.json`: `id` = `<date>-<n>`, `reportDate` = today, `session` = the US session they fill at, `ticker` (as Dime! writes it, e.g. `BRK.B`), `side`, `usd` or `fraction`, `reason` (one Thai sentence).
-   - Write `reports/<today>.json`: `date`, `session`, `headline` (one short Thai line), `summary` (Captain, 2–4 Thai sentences), `memos` (one from each of the five agents, Thai, 3–6 short points each, sources as `{title, url}`), `decisions` (**every holding and every order**: `ticker`, `action` buy/sell/hold/watch, `orderId` for buys and sells, `category`, `why` in Thai, and for buys and holds the two-minute `story` and `sellIf`), `nextWatch` (2–4 items).
+   - Write `reports/<today>.json`: `date`, `session`, `headline` (one short Thai line), `summary` (Captain, 2–4 Thai sentences), `memos` (one from each of the five agents, Thai, 3–6 short points each, sources as `{title, url}`), `decisions` (**every holding and every order**: `ticker`, `action` buy/sell/hold/watch, `orderId` for buys and sells, `category`, `why` in Thai, and for buys and holds the two-minute `story` and `sellIf`, plus `lessons`: the ids of lessons this decision applied), `nextWatch` (2–4 items).
    - Add today to `reports/index.json`.
 7. **Check.** Run `node scripts/dream-check.ts`; fix every problem until it says ok.
 8. **Publish.** Commit only files under `public/dream/` with the message `Dream meeting <date>`, then `git pull --rebase origin main` and `git push origin HEAD:main`. Pushing deploys the website.
+
+## Weekly retrospective (Saturdays, after Friday's close)
+
+A separate, lighter meeting whose only job is learning. No orders.
+
+1. **Get ready.** `git pull --rebase origin main`. If `public/dream/retros/<today>.json` exists, stop.
+2. **Read** `state.json` (especially `outcomes` and `points`), `lessons.json`, the reports since the last retro and the last retro.
+3. **Review decisions**, all of them, including watches and rejections. For each, judge **process and outcome separately**, like a poker player:
+   - `right`: sound reasoning, and it played out. `wrong`: the reasoning had a flaw we could have seen (a missed red flag, a wrong number, a broken rule). `lucky`: good result despite weak reasoning. `unlucky`: sound reasoning, bad result for reasons nobody could know. `too-early`: fewer than 20 sessions and the story hasn't changed; don't judge yet.
+   - Price alone is never the verdict. A stock down 10% in two weeks with its story intact is `too-early`, not `wrong`. A story that broke (guidance cut, a red flag we missed) can be judged at once.
+   - Use web search to check what actually happened to each story this week. Use `outcomes` numbers; don't invent returns.
+4. **Update the knowledge base** (`lessons.json`):
+   - **Add** at most **2** new lessons, only from a `wrong`, `lucky` or `unlucky` verdict with concrete evidence. Phrase each as a check to apply ("ก่อนซื้อ… ให้ตรวจ…"), say who applies it, and start it as `candidate` with its `origin` evidence. Never a lesson from a single price move. Merge with an existing lesson instead of adding a near-duplicate.
+   - **Confirm** a lesson when a new, separate case (another stock or another week) shows it again; **promote** it to `rule` once it has an origin plus at least one confirmation.
+   - **Contradict** a lesson when a case shows it was wrong; **retire** it after two contradictions, or when it no longer applies.
+   - Keep at most 15 active lessons; merge or retire the weakest.
+5. **Write** `retros/<today>.json`: `date`, `headline`, `summary` (2–4 Thai sentences: what went right and wrong, honestly), `score` (from `state.json`: Dream and SPY since the start, and over the past week from `points`), `reviews`, `lessonChanges`. Add today to `retros/index.json`.
+6. **Check and publish** as for a meeting: `node scripts/dream-check.ts` until ok, commit only `public/dream/` with `Dream retro <date>`, pull --rebase, push.
 
 ## Writing style
 
