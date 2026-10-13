@@ -39,7 +39,8 @@ const decisions = index.reports.flatMap((date) => {
   const report = JSON.parse(readFileSync(`public/dream/reports/${date}.json`, 'utf8')) as DreamReport
   return report.decisions.map((d) => ({
     reportDate: date,
-    session: report.session,
+    // A decision with an order counts from the session the team chose for that order.
+    session: ledger.orders.find((o) => o.id === d.orderId)?.session ?? report.session,
     ticker: d.ticker,
     action: d.action,
   }))

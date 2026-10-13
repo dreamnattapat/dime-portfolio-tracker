@@ -48,6 +48,11 @@ if (ledger) {
     if (!ISO.test(o.reportDate ?? '') || !ISO.test(o.session ?? ''))
       fail(`${where}: reportDate/session must be YYYY-MM-DD`)
     if (o.session < o.reportDate) fail(`${where}: session is before the meeting that placed it`)
+    // The team may pick which session an order fills at, up to a week after the meeting.
+    const latestSession = new Date(`${o.reportDate}T00:00:00Z`)
+    latestSession.setUTCDate(latestSession.getUTCDate() + 7)
+    if (o.session > latestSession.toISOString().slice(0, 10))
+      fail(`${where}: session is more than 7 days after the meeting`)
     if (!TICKER.test(o.ticker ?? '')) fail(`${where}: ticker "${o.ticker}" looks wrong`)
     if (o.side === 'buy' && !(typeof o.usd === 'number' && o.usd >= 1)) fail(`${where}: a buy needs usd >= 1`)
     if (o.side === 'sell' && !(typeof o.fraction === 'number' && o.fraction > 0 && o.fraction <= 1))

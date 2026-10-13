@@ -41,7 +41,8 @@ export function DreamPage() {
         <p className="text-muted-foreground max-w-2xl leading-relaxed">
           ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch เฉพาะหุ้นเทคโนโลยี อวกาศ สุขภาพ และพลังงาน ด้วยเงินสมมติ $
           {formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)} เป้าหมายเดียว: ชนะ S&P 500
-          ตามล่าหุ้นที่โตได้หลายเท่า (multi-bagger) ประชุมทุกวันจันทร์ก่อนตลาดสหรัฐฯ เปิด และซื้อขายที่ราคาปิดของคืนนั้น
+          ตามล่าหุ้นที่โตได้หลายเท่า (multi-bagger) ประชุมทุกวันจันทร์ก่อนตลาดสหรัฐฯ เปิด
+          และเลือกได้ว่าจะซื้อขายที่ราคาปิดของวันไหนในสัปดาห์นั้น
         </p>
       </header>
 
@@ -173,7 +174,7 @@ function LatestMeeting({ report, fills, empty }: { report: DreamReport | null; f
           {empty
             ? 'ทีมยังไม่ได้ประชุมครั้งแรก'
             : report
-              ? `${formatDate(report.date)} · ซื้อขายที่ราคาปิดของรอบ ${formatDate(report.session)}`
+              ? `${formatDate(report.date)} · รอบซื้อขายแรก ${formatDate(report.session)}`
               : 'กำลังโหลด…'}
         </CardDescription>
       </CardHeader>
@@ -577,7 +578,10 @@ function Rules() {
         <h3 className="font-semibold">กติกา</h3>
         <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
           <li>เงินสมมติ ไม่ใช่เงินจริง และไม่ใช่คำแนะนำการลงทุน</li>
-          <li>ประชุมก่อนตลาดสหรัฐฯ เปิด แล้วซื้อขายที่ราคาปิดของคืนนั้น จึงไม่มีทางรู้ราคาที่ซื้อขายล่วงหน้า</li>
+          <li>
+            ประชุมก่อนตลาดสหรัฐฯ เปิด แล้วเลือกรอบซื้อขายแต่ละคำสั่งได้ภายใน 7 วัน เติมที่ราคาปิดของรอบนั้น
+            จึงไม่มีทางรู้ราคาที่ซื้อขายล่วงหน้า และยกเลิกคำสั่งก่อนถึงรอบไม่ได้
+          </li>
           <li>เสียค่าคอมมิชชันแบบ Dime! (0.15% + VAT 7%) ทุกครั้งที่ซื้อขาย</li>
           <li>
             เลือกเฉพาะ 4 ธีม: เทคโนโลยี อวกาศ สุขภาพ พลังงาน ธีมละไม่เกิน 40%
