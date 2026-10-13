@@ -3,7 +3,7 @@
 A website that turns your Dime! trade confirmation emails into a transaction
 history and portfolio dashboard, without you having to set anything up.
 
-**Live:** https://dime-portfolio-tracker.dreamnattapat.workers.dev
+**Live:** https://songport-dime.dreamnattapat.workers.dev
 
 It's the web version of
 [dime-auto-log-transactions](https://github.com/dreamnattapat/dime-auto-log-transactions):
@@ -49,7 +49,7 @@ Gmail API is already enabled there. No billing is needed.
 2. Application type: **Web application** (the old Desktop client won't work in
    a browser).
 3. **Authorized JavaScript origins:** add `http://localhost:5173` and
-   `https://dime-portfolio-tracker.dreamnattapat.workers.dev`. No redirect URIs
+   `https://songport-dime.dreamnattapat.workers.dev`. No redirect URIs
    are needed.
 4. Copy the client ID into `.env.local`:
    ```bash
