@@ -35,7 +35,8 @@ export async function syncFromGmail(
   const retry = new Set(unparsed.map((tx) => tx.gmailMessageId))
   // Emails that were marked done without leaving a single row (an older version skipped ones with no readable
   // PDF without a trace): look at them again, so they show up as unreadable or get imported.
-  const withRows = new Set(await db.transactions.orderBy('gmailMessageId').uniqueKeys())
+  // Plain reads only: the unique-key cursor failed on iPhone Safari ("Unable to open cursor").
+  const withRows = new Set((await db.transactions.toArray()).map((tx) => tx.gmailMessageId))
   for (const id of processed) if (!withRows.has(id)) retry.add(id)
   const newIds = allIds.filter((id) => !processed.has(id) || retry.has(id))
 
