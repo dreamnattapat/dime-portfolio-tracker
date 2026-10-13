@@ -261,24 +261,21 @@ function SummaryCard({
             </p>
             <div className="space-y-1 pt-1 text-sm">
               <Delta
-                label="1D"
+                label="เปลี่ยนแปลงจากวันก่อน"
                 change={day}
                 pending={!portfolio}
-                currency={currency}
                 title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
               />
               <Delta
                 label="MoM"
                 change={usd ? portfolio?.momUsd : portfolio?.mom}
                 pending={!portfolio}
-                currency={currency}
                 title={TWR_HINT}
               />
               <Delta
                 label="YoY"
                 change={usd ? portfolio?.yoyUsd : portfolio?.yoy}
                 pending={!portfolio}
-                currency={currency}
                 title={TWR_HINT}
               />
             </div>
@@ -501,13 +498,11 @@ function Delta({
   change,
   pending,
   title,
-  currency,
 }: {
   label: string
   change?: PeriodChange | null
   pending: boolean
   title: string
-  currency: Currency
 }) {
   if (!change) {
     return (
@@ -520,12 +515,11 @@ function Delta({
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (
     <p className="flex items-center gap-1.5" title={title}>
-      <span className="text-muted-foreground w-9">{label}</span>
+      <span className="text-muted-foreground shrink-0">{label}</span>
       <span className={`flex items-center font-medium ${up ? 'text-delta-up' : 'text-delta-down'}`}>
         <Arrow className="size-4" aria-hidden />
         {formatPercent(change.returnPct, { signed: true })}
       </span>
-      <span className="text-muted-foreground tabular-nums">({formatSignedMoney(change.gain, currency)})</span>
     </p>
   )
 }
