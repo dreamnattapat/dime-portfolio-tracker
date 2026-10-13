@@ -197,7 +197,7 @@ export default function App() {
             <header className="space-y-4">
               <div className="space-y-2">
                 <p className="text-brand flex items-center gap-2 text-sm font-semibold">
-                  <img src="/favicon.svg" alt="" className="size-7" />
+                  <img src="/logo.png" alt="" className="size-8 rounded-lg" />
                   ส่องพอร์ต Dime
                 </p>
                 <h1 className="font-display text-[1.75rem] leading-tight font-medium sm:text-4xl">
@@ -285,7 +285,7 @@ export default function App() {
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
               <p className="text-brand flex items-center gap-2 text-sm font-semibold">
-                <img src="/favicon.svg" alt="" className="size-7" />
+                <img src="/logo.png" alt="" className="size-8 rounded-lg" />
                 ส่องพอร์ต Dime
               </p>
               <div className="flex items-center gap-2">
