@@ -386,15 +386,6 @@ export default function App() {
           <a className="underline underline-offset-2" href="/privacy">
             นโยบายความเป็นส่วนตัว
           </a>
-          {' · '}
-          <a
-            className="underline underline-offset-2"
-            href="https://github.com/dreamnattapat/dime-portfolio-tracker"
-            target="_blank"
-            rel="noreferrer"
-          >
-            ซอร์สโค้ด
-          </a>
           {hasData && (
             <>
               {' · '}

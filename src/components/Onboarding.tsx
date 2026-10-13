@@ -26,12 +26,18 @@ export function Stepper({ current }: { current: Step }) {
             <div className="flex items-center gap-2">
               <span
                 className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  done ? 'bg-brand text-white' : active ? 'border-brand text-brand border-2' : 'bg-muted text-muted-foreground'
+                  done
+                    ? 'bg-brand text-white'
+                    : active
+                      ? 'border-brand text-brand border-2'
+                      : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {done ? <Check className="size-3.5" aria-label="เสร็จแล้ว" /> : step}
               </span>
-              <span className={`text-sm leading-tight ${active ? 'font-semibold' : 'text-muted-foreground'}`}>{label}</span>
+              <span className={`text-sm leading-tight ${active ? 'font-semibold' : 'text-muted-foreground'}`}>
+                {label}
+              </span>
             </div>
           </li>
         )
@@ -61,10 +67,15 @@ export function ConnectStep({
   return (
     <StepPanel title="เชื่อมต่อ Gmail ที่ใช้รับอีเมลจาก Dime!">
       <p className="text-muted-foreground">
-        เว็บนี้ค้นหาเฉพาะอีเมลหัวข้อ “{EMAIL_SUBJECT}” เพื่อดึงไฟล์ใบยืนยันการซื้อขาย สิทธิ์เป็นแบบอ่านอย่างเดียว
-        จึงส่ง ลบ หรือแก้ไขอีเมลของคุณไม่ได้
+        เว็บนี้ค้นหาเฉพาะอีเมลหัวข้อ “{EMAIL_SUBJECT}” เพื่อดึงไฟล์ใบยืนยันการซื้อขาย สิทธิ์เป็นแบบอ่านอย่างเดียว จึงส่ง
+        ลบ หรือแก้ไขอีเมลของคุณไม่ได้
       </p>
-      <Button size="lg" className="bg-brand hover:bg-brand/90 h-12 w-full rounded-full text-base text-white" onClick={onConnect} disabled={disabled || connecting}>
+      <Button
+        size="lg"
+        className="bg-brand hover:bg-brand/90 h-12 w-full rounded-full text-base text-white"
+        onClick={onConnect}
+        disabled={disabled || connecting}
+      >
         <Mail className="size-5" aria-hidden />
         {connecting ? 'กำลังรอ Google…' : 'เชื่อมต่อ Gmail'}
       </Button>
@@ -77,7 +88,12 @@ export function ConnectStep({
           </p>
           <p>
             ยกเลิกสิทธิ์ได้ทุกเมื่อที่{' '}
-            <a className="underline underline-offset-2" href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer">
+            <a
+              className="underline underline-offset-2"
+              href="https://myaccount.google.com/connections"
+              target="_blank"
+              rel="noreferrer"
+            >
               บัญชี Google ของคุณ
             </a>
           </p>
@@ -166,9 +182,7 @@ export function SyncStatus({ progress }: { progress: SyncProgress }) {
     <div className="space-y-1.5">
       <Progress value={progress.total ? (progress.done / progress.total) * 100 : 100} />
       <p className="text-muted-foreground text-sm">
-        {progress.total === 0
-          ? 'ไม่มีอีเมล Dime! ใหม่'
-          : `อ่านอีเมลแล้ว ${progress.done} จาก ${progress.total} ฉบับ`}
+        {progress.total === 0 ? 'ไม่มีอีเมล Dime! ใหม่' : `อ่านอีเมลแล้ว ${progress.done} จาก ${progress.total} ฉบับ`}
         {progress.failed ? ` ล้มเหลว ${progress.failed} ฉบับ (จะลองใหม่ครั้งหน้า)` : ''}
       </p>
       {progress.firstError && <p className="text-destructive text-sm">ข้อผิดพลาดแรก: {progress.firstError}</p>}
@@ -204,22 +218,25 @@ export function DataPath() {
           ใช้เปิดไฟล์ PDF แล้วลืมทันทีเมื่อปิดหน้า
         </Fact>
         <Fact icon={<ShieldCheck />} title="ตรวจสอบได้">
-          การตั้งค่าความปลอดภัยของเว็บบังคับให้เบราว์เซอร์ส่งข้อมูลไปได้แค่ Google และเว็บนี้ และ
-          <a
-            className="underline underline-offset-2"
-            href="https://github.com/dreamnattapat/dime-portfolio-tracker"
-            target="_blank"
-            rel="noreferrer"
-          >
-            ซอร์สโค้ดเปิดให้ดูได้
-          </a>
+          การตั้งค่าความปลอดภัยของเว็บบังคับให้เบราว์เซอร์ส่งข้อมูลไปได้แค่ Google และเว็บนี้ ดูได้เองที่แท็บ Network
+          ของเบราว์เซอร์
         </Fact>
       </ul>
     </section>
   )
 }
 
-function Node({ icon, label, highlight, muted }: { icon: ReactNode; label: string; highlight?: boolean; muted?: boolean }) {
+function Node({
+  icon,
+  label,
+  highlight,
+  muted,
+}: {
+  icon: ReactNode
+  label: string
+  highlight?: boolean
+  muted?: boolean
+}) {
   return (
     <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
       <span
@@ -229,9 +246,7 @@ function Node({ icon, label, highlight, muted }: { icon: ReactNode; label: strin
       >
         {icon}
       </span>
-      <span className={`text-xs leading-snug ${muted ? 'text-muted-foreground' : 'font-medium'}`}>
-        {label}
-      </span>
+      <span className={`text-xs leading-snug ${muted ? 'text-muted-foreground' : 'font-medium'}`}>{label}</span>
     </div>
   )
 }
