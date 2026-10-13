@@ -1,0 +1,36 @@
+# After each US close, fill Team Dream's orders at the closing prices and
+# commit public/dream/state.json (the website and the next meeting read it).
+name: Dream closing prices
+
+on:
+  schedule:
+    # 21:30 UTC = 04:30 Bangkok, after the 16:00 New York close (EDT or EST), Mon-Fri sessions.
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dream
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/dream-update.ts
+      - name: Commit if changed
+        run: |
+          git config user.name "dream-bot"
+          git config user.email "dream-bot@users.noreply.github.com"
+          git add public/dream/state.json
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git commit -m "Dream: closing prices $(date -u +%F)"
+          git pull --rebase origin main
+          git push origin HEAD:main

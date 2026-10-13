@@ -42,6 +42,7 @@
     --color-series-you: var(--series-you);
     --color-series-spy: var(--series-spy);
     --color-series-invested: var(--series-invested);
+    --color-series-dream: var(--series-dream);
     --color-delta-up: var(--delta-up);
     --color-delta-down: var(--delta-down);
     --color-sidebar: var(--sidebar);
@@ -96,6 +97,7 @@
     --series-you: #2a78d6;
     --series-spy: #eb6834;
     --series-invested: #898781;
+    --series-dream: #7a45d1;
     --chart-grid: #e1e0d9;
     --chart-axis-text: #898781;
     --delta-up: #006300;
@@ -139,6 +141,7 @@
     --series-you: #3987e5;
     --series-spy: #d95926;
     --series-invested: #898781;
+    --series-dream: #ad86ec;
     --chart-grid: #2c2c2a;
     --chart-axis-text: #898781;
     --delta-up: #0ca30c;

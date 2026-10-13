@@ -27,11 +27,21 @@ const LINES = {
   you: { color: '--series-you', dashed: false },
   spy: { color: '--series-spy', dashed: false },
   invested: { color: '--series-invested', dashed: true },
+  dream: { color: '--series-dream', dashed: false },
 } as const
 
 type LineKey = keyof typeof LINES
 /** Each line's running time-weighted return since the start of the selected range, by point index. */
-type Cumulative = { you: (number | null)[]; spy: (number | null)[] }
+type Cumulative = { you: (number | null)[]; spy: (number | null)[]; dream: (number | null)[] }
+
+/**
+ * Team Dream's value by date, in the chart's currency. The head-to-head starts
+ * at the close of its first session; `base` is its starting cash then, so its
+ * return matches the Dream page's.
+ */
+export type DreamLine = { start: string; base: number; values: Map<string, number> }
+
+const DREAM_RANGE = 'Dream'
 /**
  * `of` gives a line's value on day `p` (index `i`); `base` is the first day of
  * the selected range. Null means no value yet (before the range, in the % view).
@@ -66,6 +76,7 @@ const VIEWS: Record<'pct' | 'gain' | 'value', { label: string; series: SeriesDef
     series: [
       { key: 'you', label: 'ผลตอบแทนของคุณ', of: (_p, _b, i, cum) => cum.you[i] },
       { key: 'spy', label: 'S&P 500', of: (_p, _b, i, cum) => cum.spy[i] },
+      { key: 'dream', label: 'ทีม Dream', of: (_p, _b, i, cum) => cum.dream[i] },
     ],
   },
   gain: {
@@ -102,8 +113,11 @@ export function PortfolioChart({
   latestSession,
   currency,
   hideAmounts,
+  dream,
 }: {
   points: TimelinePoint[]
+  /** Team Dream (the AI team), for a head-to-head from the day it started. */
+  dream?: DreamLine | null
   /** The latest US trading day: ranges count back from it, like brokers' 1M / 1Y. */
   latestSession: string
   currency: Currency
@@ -118,7 +132,11 @@ export function PortfolioChart({
   // The replay: the last point index drawn while the lines grow to today, or null.
   const [replay, setReplay] = useState<number | null>(null)
   const replayFrame = useRef<number | null>(null)
-  const { series } = VIEWS[view]
+  // Dream's card needs your history to cover the day it started.
+  const dreamStart = dream ? points.findLastIndex((p) => p.date <= dream.start) : -1
+  const dreamRange = range === DREAM_RANGE && dreamStart >= 0
+  // The Dream line only in the % view of its own range: its amounts are play money.
+  const series = VIEWS[view].series.filter((s) => s.key !== 'dream' || dreamRange)
   const byDate = useMemo(() => new Map(points.map((p, i) => [p.date, i])), [points])
   // The crosshair handler is set up once, so it reads the latest points through a ref.
   const byDateRef = useRef(byDate)
@@ -183,19 +201,23 @@ export function PortfolioChart({
 
   const months = RANGES.find((r) => r.label === range)?.months
   // A range longer than the history shows all of it.
-  const start = Math.max(0, rangeStart(points, months ?? null, latestSession))
+  const start = dreamRange ? dreamStart : Math.max(0, rangeStart(points, months ?? null, latestSession))
   // Gains are counted from the start of the range. For the whole history that's
   // the zero point before the first trade, so ทั้งหมด matches the summary's total gain.
   const base = points[start]
   const cum = useMemo<Cumulative>(
-    () => ({ you: cumulativeReturns(points, start), spy: cumulativeReturns(points, start, (p) => p.spy) }),
-    [points, start],
+    () => ({
+      you: cumulativeReturns(points, start),
+      spy: cumulativeReturns(points, start, (p) => p.spy),
+      dream: dreamReturns(points, start, dream),
+    }),
+    [points, start, dream],
   )
 
   useEffect(() => {
     if (!base) return
     for (const [key, line] of seriesRef.current) {
-      const def = VIEWS[view].series.find((s) => s.key === key)
+      const def = VIEWS[view].series.find((s) => s.key === key && (key !== 'dream' || dreamRange))
       line.applyOptions({ visible: !!def })
       line.setData(
         def
@@ -214,7 +236,7 @@ export function PortfolioChart({
     if (chart && last) {
       chart.timeScale().setVisibleLogicalRange({ from: start, to: points.length - 1 })
     }
-  }, [points, view, base, cum, replay, start])
+  }, [points, view, base, cum, replay, start, dreamRange])
 
   function stopReplay() {
     if (replayFrame.current != null) cancelAnimationFrame(replayFrame.current)
@@ -274,9 +296,12 @@ export function PortfolioChart({
         points={points}
         latestSession={latestSession}
         selected={range}
+        dream={dreamStart >= 0 ? { start: dreamStart, returns: dreamReturns(points, dreamStart, dream) } : null}
         onSelect={(r) => {
           stopReplay()
           setRange(r)
+          // Dream is compared in %: its money is play money.
+          if (r === DREAM_RANGE) setView('pct')
         }}
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -399,6 +424,7 @@ function RangeChange({
   currency: Currency
 }) {
   const valueOf = VALUE_OF[line]
+  if (line === 'dream') return <span className="text-muted-foreground">เงินสมมติ ดูที่หน้าทีม Dream</span>
   if (start >= end) return <span className="text-muted-foreground">—</span>
   if (!valueOf) {
     const added = points[end].invested - points[start].invested
@@ -438,15 +464,21 @@ function Scorecards({
   points,
   latestSession,
   selected,
+  dream,
   onSelect,
 }: {
   points: TimelinePoint[]
   latestSession: string
   selected: string
+  dream: { start: number; returns: (number | null)[] } | null
   onSelect: (range: string) => void
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="ช่วงเวลา">
+    <div
+      className={`grid grid-cols-2 gap-2 ${dream ? 'sm:grid-cols-3 lg:grid-cols-5' : 'sm:grid-cols-4'}`}
+      role="group"
+      aria-label="ช่วงเวลา"
+    >
       {RANGES.map((r) => {
         const score = scorecard(points, r.months, latestSession)
         const active = selected === r.label
@@ -478,8 +510,63 @@ function Scorecards({
           </button>
         )
       })}
+      {dream && <DreamCard points={points} {...dream} active={selected === DREAM_RANGE} onSelect={onSelect} />}
     </div>
   )
+}
+
+/** You vs Team Dream vs the S&P 500, from the close before Dream's first session. */
+function DreamCard({
+  points,
+  start,
+  returns,
+  active,
+  onSelect,
+}: {
+  points: TimelinePoint[]
+  start: number
+  returns: (number | null)[]
+  active: boolean
+  onSelect: (range: string) => void
+}) {
+  const you = changeBetween(points, start)
+  const spy = changeBetween(points, start, points.length - 1, (p) => p.spy)
+  const dreamPct = returns.at(-1) ?? null
+  const rows: [string, number | null | undefined][] = [
+    ['คุณ', you?.returnPct],
+    ['ทีม Dream', dreamPct],
+    ['S&P 500', spy?.returnPct],
+  ]
+  return (
+    <button
+      className={`hover:bg-accent col-span-2 rounded-lg border p-3 text-left transition-colors sm:col-span-1 ${active ? 'border-foreground/30 bg-accent' : ''}`}
+      aria-pressed={active}
+      onClick={() => onSelect(DREAM_RANGE)}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-1">
+        <span className="text-sm font-semibold">
+          แข่งกับ <span className="text-series-dream">Dream</span>
+        </span>
+        {you && dreamPct != null && <Verdict leadPct={you.returnPct - dreamPct} />}
+      </div>
+      <dl className="mt-2 space-y-0.5 text-xs">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="tabular-nums">{formatPercent(value, { signed: true })}</dd>
+          </div>
+        ))}
+      </dl>
+    </button>
+  )
+}
+
+/** Dream's return since it started, % (null before the range or where Dream has no value). */
+function dreamReturns(points: TimelinePoint[], start: number, dream: DreamLine | null | undefined): (number | null)[] {
+  return points.map((p, i) => {
+    const value = dream && start >= 0 && i >= start ? dream.values.get(p.date) : undefined
+    return value != null ? (value / dream!.base - 1) * 100 : null
+  })
 }
 
 /** Ahead / behind the S&P 500, with an icon so it never relies on color alone. */
