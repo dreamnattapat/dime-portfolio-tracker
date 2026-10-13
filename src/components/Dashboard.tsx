@@ -466,9 +466,9 @@ function HeldProfit({
     <div className="space-y-1" title="สินทรัพย์ที่ยังถืออยู่: ราคาตอนนี้เทียบกับต้นทุนเฉลี่ย (เหมือนในแอป Dime!)">
       <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถือออยู่</p>
       <p
-        className={`flex flex-wrap items-center text-lg font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
+        className={`flex flex-wrap items-center text-sm font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
       >
-        <Arrow className="size-5" aria-hidden />
+        <Arrow className="size-4" aria-hidden />
         {pct == null ? '—' : formatPercent(Math.abs(pct), { decimals: 2 })}
         <span className="ml-1.5">({signed(unrealized)})</span>
       </p>
@@ -569,10 +569,8 @@ function Delta({
         {label}
         <Info className="size-4" aria-hidden />
       </p>
-      <p
-        className={`flex items-center text-2xl font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
-      >
-        <Arrow className="size-6" aria-hidden />
+      <p className={`flex items-center text-sm font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}>
+        <Arrow className="size-4" aria-hidden />
         {formatPercent(Math.abs(change.returnPct), { decimals: 2 })}
       </p>
     </div>
