@@ -9,8 +9,8 @@ import './index.css'
 import App from './App.tsx'
 import { DreamPage } from './components/dream/DreamPage.tsx'
 
-// /dream is Team Dream's public page; everything else is the portfolio app.
-const dream = /^\/dream\/?$/.test(window.location.pathname)
-if (dream) document.title = 'ทีม Dream · ส่องพอร์ต Dime'
+// /lynch is the AI team's public page (/dream, its first name, still works); everything else is the portfolio app.
+const dream = /^\/(lynch|dream)\/?$/.test(window.location.pathname)
+if (dream) document.title = 'ทีม Lynch · ส่องพอร์ต Dime'
 
 createRoot(document.getElementById('root')!).render(<StrictMode>{dream ? <DreamPage /> : <App />}</StrictMode>)

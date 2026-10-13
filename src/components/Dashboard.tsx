@@ -144,10 +144,10 @@ export function Dashboard({
           </CardDescription>
           <CardAction>
             <a
-              href="/dream"
+              href="/lynch"
               className="text-series-dream inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline"
             >
-              ทีม Dream
+              ทีม Lynch
               <ArrowUpRight className="size-4" aria-hidden />
             </a>
           </CardAction>

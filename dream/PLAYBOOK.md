@@ -1,6 +1,6 @@
-# Team Dream: meeting playbook (Peter Lynch style)
+# Team Lynch: meeting playbook (Peter Lynch style)
 
-Team Dream is five AI agents managing a **paper** portfolio (play money, $10,000 at the start on 13 Oct 2026) with one goal: **beat the S&P 500** (SPY, held from the first day) by investing the way **Peter Lynch** did (*One Up on Wall Street*, *Beating the Street*): find multi-baggers early, know exactly why you own each stock, and hold them while the story holds. Everything is public on the website at `/dream`, compared with the site owner's own portfolio. Nobody's real money is at stake; the site says it isn't investment advice.
+Team Lynch (called Team Dream at first; the code and data paths still say `dream`) is five AI agents managing a **paper** portfolio (play money, $10,000 at the start on 13 Oct 2026) with one goal: **beat the S&P 500** (SPY, held from the first day) by investing the way **Peter Lynch** did (*One Up on Wall Street*, *Beating the Street*): find multi-baggers early, know exactly why you own each stock, and hold them while the story holds. Everything is public on the website at `/lynch`, compared with the site owner's own portfolio. Nobody's real money is at stake; the site says it isn't investment advice.
 
 This file is the whole brief for a meeting. Follow it exactly.
 
@@ -64,7 +64,7 @@ This file is the whole brief for a meeting. Follow it exactly.
    - Write `reports/<today>.json`: `date`, `session`, `headline` (one short Thai line), `summary` (Captain, 2–4 Thai sentences), `memos` (one from each of the five agents, Thai, 3–6 short points each, sources as `{title, url}`), `decisions` (**every holding and every order**: `ticker`, `action` buy/sell/hold/watch, `orderId` for buys and sells, `category`, `theme`, `about` (what the company does, one plain sentence), `why` in Thai, and for buys and holds the two-minute `story` and `sellIf`, plus `lessons`: the ids of lessons this decision applied), `nextWatch` (2–4 items).
    - Add today to `reports/index.json`.
 7. **Check.** Run `node scripts/dream-check.ts`; fix every problem until it says ok.
-8. **Publish.** Commit only files under `public/dream/` with the message `Dream meeting <date>`, then `git pull --rebase origin main` and `git push origin HEAD:main`. Pushing deploys the website.
+8. **Publish.** Commit only files under `public/dream/` with the message `Lynch meeting <date>`, then `git pull --rebase origin main` and `git push origin HEAD:main`. Pushing deploys the website.
 
 ## Weekly retrospective (Saturdays, after Friday's close)
 
@@ -82,7 +82,7 @@ A separate, lighter meeting whose only job is learning. No orders.
    - **Contradict** a lesson when a case shows it was wrong; **retire** it after two contradictions, or when it no longer applies.
    - Keep at most 15 active lessons; merge or retire the weakest.
 5. **Write** `retros/<today>.json`: `date`, `headline`, `summary` (2–4 Thai sentences: what went right and wrong, honestly), `score` (from `state.json`: Dream and SPY since the start, and over the past week from `points`), `reviews`, `lessonChanges`. Add today to `retros/index.json`.
-6. **Check and publish** as for a meeting: `node scripts/dream-check.ts` until ok, commit only `public/dream/` with `Dream retro <date>`, pull --rebase, push.
+6. **Check and publish** as for a meeting: `node scripts/dream-check.ts` until ok, commit only `public/dream/` with `Lynch retro <date>`, pull --rebase, push.
 
 ## Writing style
 

@@ -37,7 +37,7 @@ export function DreamPage() {
       </a>
       <header className="space-y-2">
         <p className="text-brand text-sm font-semibold">ความท้าทาย · สไตล์ Peter Lynch</p>
-        <h1 className="font-display text-3xl font-medium sm:text-4xl">ทีม Dream</h1>
+        <h1 className="font-display text-3xl font-medium sm:text-4xl">ทีม Lynch</h1>
         <p className="text-muted-foreground max-w-2xl leading-relaxed">
           ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch เฉพาะหุ้นเทคโนโลยี อวกาศ สุขภาพ และพลังงาน ด้วยเงินสมมติ $
           {formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)} เป้าหมายเดียว: ชนะ S&P 500
@@ -45,7 +45,7 @@ export function DreamPage() {
         </p>
       </header>
 
-      {error && <p className="text-muted-foreground text-sm">โหลดข้อมูลทีม Dream ไม่ได้ ({error})</p>}
+      {error && <p className="text-muted-foreground text-sm">โหลดข้อมูลทีม Lynch ไม่ได้ ({error})</p>}
       {data ? <Scoreboard data={data} /> : !error && <p className="text-muted-foreground text-sm">กำลังโหลด…</p>}
 
       <Team latest={latest} />
@@ -78,7 +78,7 @@ function Scoreboard({ data }: { data: DreamData }) {
       <CardContent className="space-y-6">
         <div className="grid gap-6 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="space-y-1">
-            <p className="text-muted-foreground text-sm">มูลค่าพอร์ต Dream</p>
+            <p className="text-muted-foreground text-sm">มูลค่าพอร์ต Lynch</p>
             <p className="font-display text-4xl font-medium tabular-nums">{formatMoney(state.valueUsd, '$')}</p>
             <p className="text-muted-foreground text-xs">
               เริ่ม {formatDate(ledger.startDate)} · เงินสด {formatMoney(state.cashUsd, '$')}
@@ -109,7 +109,7 @@ function Scoreboard({ data }: { data: DreamData }) {
         </div>
         <dl className="grid grid-cols-2 gap-4 text-sm sm:max-w-md">
           <div>
-            <dt className="text-muted-foreground">ทีม Dream</dt>
+            <dt className="text-muted-foreground">ทีม Lynch</dt>
             <dd className="text-lg font-semibold tabular-nums">
               {formatPercent(state.returnPct, { signed: true, decimals: 2 })}
             </dd>

@@ -55,7 +55,7 @@ export function DreamChart({ points, startingCash }: { points: DreamPoint[]; sta
       <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         {(
           [
-            ['ทีม Dream', '--series-dream', shown && pct(shown.value)],
+            ['ทีม Lynch', '--series-dream', shown && pct(shown.value)],
             ['S&P 500', '--series-spy', shown && pct(shown.spy)],
           ] as const
         ).map(([label, color, value]) => (

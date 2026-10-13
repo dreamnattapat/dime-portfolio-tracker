@@ -41,7 +41,7 @@ type Cumulative = { you: (number | null)[]; spy: (number | null)[]; dream: (numb
  */
 export type DreamLine = { start: string; base: number; values: Map<string, number> }
 
-const DREAM_RANGE = 'Dream'
+const DREAM_RANGE = 'Lynch'
 /**
  * `of` gives a line's value on day `p` (index `i`); `base` is the first day of
  * the selected range. Null means no value yet (before the range, in the % view).
@@ -76,7 +76,7 @@ const VIEWS: Record<'pct' | 'gain' | 'value', { label: string; series: SeriesDef
     series: [
       { key: 'you', label: 'ผลตอบแทนของคุณ', of: (_p, _b, i, cum) => cum.you[i] },
       { key: 'spy', label: 'S&P 500', of: (_p, _b, i, cum) => cum.spy[i] },
-      { key: 'dream', label: 'ทีม Dream', of: (_p, _b, i, cum) => cum.dream[i] },
+      { key: 'dream', label: 'ทีม Lynch', of: (_p, _b, i, cum) => cum.dream[i] },
     ],
   },
   gain: {
@@ -424,7 +424,7 @@ function RangeChange({
   currency: Currency
 }) {
   const valueOf = VALUE_OF[line]
-  if (line === 'dream') return <span className="text-muted-foreground">เงินสมมติ ดูที่หน้าทีม Dream</span>
+  if (line === 'dream') return <span className="text-muted-foreground">เงินสมมติ ดูที่หน้าทีม Lynch</span>
   if (start >= end) return <span className="text-muted-foreground">—</span>
   if (!valueOf) {
     const added = points[end].invested - points[start].invested
@@ -534,7 +534,7 @@ function DreamCard({
   const dreamPct = returns.at(-1) ?? null
   const rows: [string, number | null | undefined][] = [
     ['คุณ', you?.returnPct],
-    ['ทีม Dream', dreamPct],
+    ['ทีม Lynch', dreamPct],
     ['S&P 500', spy?.returnPct],
   ]
   return (
@@ -545,7 +545,7 @@ function DreamCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-1">
         <span className="text-sm font-semibold">
-          แข่งกับ <span className="text-series-dream">Dream</span>
+          แข่งกับ <span className="text-series-dream">Lynch</span>
         </span>
         {you && dreamPct != null && <Verdict leadPct={you.returnPct - dreamPct} />}
       </div>
