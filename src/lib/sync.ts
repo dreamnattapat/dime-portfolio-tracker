@@ -33,6 +33,10 @@ export async function syncFromGmail(
   const processed = new Set(await db.processedMessages.toCollection().primaryKeys())
   const unparsed = await db.transactions.filter((tx) => tx.parseStatus === 'unparsed').toArray()
   const retry = new Set(unparsed.map((tx) => tx.gmailMessageId))
+  // Emails that were marked done without leaving a single row (an older version skipped ones with no readable
+  // PDF without a trace): look at them again, so they show up as unreadable or get imported.
+  const withRows = new Set(await db.transactions.orderBy('gmailMessageId').uniqueKeys())
+  for (const id of processed) if (!withRows.has(id)) retry.add(id)
   const newIds = allIds.filter((id) => !processed.has(id) || retry.has(id))
 
   const progress: SyncProgress = { total: newIds.length, done: 0, added: 0, failed: 0 }
@@ -45,21 +49,20 @@ export async function syncFromGmail(
     try {
       const email = await fetchPdfAttachment(accessToken, messageId)
       const rows: Transaction[] = []
-      if (email) {
-        const text = await extractText(email.pdfBytes, pdfPassword)
-        const receivedAt = new Date(email.internalDateMs).toISOString()
-        parseFields(text).forEach((parsed, index) => {
-          rows.push({ ...parsed, id: `${messageId}:${index}`, gmailMessageId: messageId, receivedAt })
-        })
-      }
-      // An email without a PDF is marked processed too, so it's skipped next time.
+      const receivedAt = new Date(email.internalDateMs).toISOString()
+      // An email with no readable PDF still leaves a placeholder row, so it's counted as unreadable and tried
+      // again, not silently dropped.
+      const text = email.pdfBytes ? await extractText(email.pdfBytes, pdfPassword) : 'ไม่พบไฟล์ PDF แนบในอีเมลนี้'
+      parseFields(text).forEach((parsed, index) => {
+        rows.push({ ...parsed, id: `${messageId}:${index}`, gmailMessageId: messageId, receivedAt })
+      })
       await db.transaction('rw', db.transactions, db.processedMessages, async () => {
         // Replace rows from an earlier attempt (e.g. an unparsed placeholder).
         await db.transactions.where('gmailMessageId').equals(messageId).delete()
         await db.transactions.bulkPut(rows)
         await db.processedMessages.put({ id: messageId, processedAt: new Date().toISOString() })
       })
-      if (email) progress.added++
+      if (email.pdfBytes) progress.added++
     } catch (error) {
       if (error instanceof WrongPasswordError || error instanceof SiteUpdatedError) {
         fatal = error

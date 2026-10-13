@@ -24,11 +24,13 @@ export type DimeEmail = {
   messageId: string
   internalDateMs: number
   pdfFilename: string
-  pdfBytes: Uint8Array
+  /** Null when the email has no attachment we can read as a PDF. */
+  pdfBytes: Uint8Array | null
 }
 
 type MessagePart = {
   filename?: string
+  mimeType?: string
   body?: { attachmentId?: string }
   parts?: MessagePart[]
 }
@@ -50,8 +52,7 @@ async function gmailGet<T>(accessToken: string, path: string, params: Record<str
 
     const body = await response.json().catch(() => null)
     const rateLimited =
-      response.status === 429 ||
-      (response.status === 403 && RATE_LIMIT_REASONS.has(body?.error?.errors?.[0]?.reason))
+      response.status === 429 || (response.status === 403 && RATE_LIMIT_REASONS.has(body?.error?.errors?.[0]?.reason))
     if (rateLimited && attempt < MAX_RETRIES) {
       // Exponential backoff with jitter, as Google recommends, so parallel
       // downloads don't all retry at the same instant.
@@ -77,25 +78,23 @@ export async function findDimeMessageIds(accessToken: string, maxResults?: numbe
   return maxResults ? ids.slice(0, maxResults) : ids
 }
 
-export async function fetchPdfAttachment(accessToken: string, messageId: string): Promise<DimeEmail | null> {
+export async function fetchPdfAttachment(accessToken: string, messageId: string): Promise<DimeEmail> {
   const message = await gmailGet<{ internalDate: string; payload?: MessagePart }>(
     accessToken,
     `/messages/${messageId}`,
     { format: 'full' },
   )
 
+  const internalDateMs = Number(message.internalDate)
   const pdfPart = findPdfPart(message.payload?.parts ?? [])
   const attachmentId = pdfPart?.body?.attachmentId
-  if (!pdfPart || !attachmentId) return null
+  if (!pdfPart || !attachmentId) return { messageId, internalDateMs, pdfFilename: '', pdfBytes: null }
 
-  const attachment = await gmailGet<{ data: string }>(
-    accessToken,
-    `/messages/${messageId}/attachments/${attachmentId}`,
-  )
+  const attachment = await gmailGet<{ data: string }>(accessToken, `/messages/${messageId}/attachments/${attachmentId}`)
 
   return {
     messageId,
-    internalDateMs: Number(message.internalDate),
+    internalDateMs,
     pdfFilename: pdfPart.filename || `${messageId}.pdf`,
     pdfBytes: decodeBase64Url(attachment.data),
   }
@@ -103,7 +102,12 @@ export async function fetchPdfAttachment(accessToken: string, messageId: string)
 
 function findPdfPart(parts: MessagePart[]): MessagePart | null {
   for (const part of parts) {
-    if (part.filename?.toLowerCase().endsWith('.pdf')) return part
+    // By name, or by type for an attachment whose name lost its extension.
+    if (
+      part.body?.attachmentId &&
+      (part.filename?.toLowerCase().endsWith('.pdf') || part.mimeType === 'application/pdf')
+    )
+      return part
     const nested = part.parts && findPdfPart(part.parts)
     if (nested) return nested
   }
