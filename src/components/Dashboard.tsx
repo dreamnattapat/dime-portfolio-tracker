@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Info } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Info } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AssetsTable } from '@/components/AssetsTable'
@@ -128,6 +128,7 @@ export function Dashboard({
         totalPnl={totalPnl}
         realized={realized}
         unrealized={unrealized}
+        heldValue={sumAssets(assets, (a) => (a.held ? a.value : 0))}
         breakdown={breakdown}
         stats={stats}
         tradeCount={transactions.length}
@@ -210,6 +211,7 @@ function SummaryCard({
   totalPnl,
   realized,
   unrealized,
+  heldValue,
   breakdown,
   stats,
   tradeCount,
@@ -222,6 +224,7 @@ function SummaryCard({
   totalPnl: number | null
   realized: number
   unrealized: number | null
+  heldValue: number | null
   breakdown: Breakdown | null
   stats: TradeStats
   tradeCount: number
@@ -263,6 +266,7 @@ function SummaryCard({
               pending={!portfolio}
               title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
             />
+            <HeldProfit unrealized={unrealized} heldValue={heldValue} signed={signed} pending={pending} />
           </div>
 
           <div className="my-5 border-t lg:hidden" aria-hidden />
@@ -318,6 +322,8 @@ function SummaryCard({
           </dl>
         </div>
 
+        {portfolio && <UsdThbSetting portfolio={portfolio} onChange={onChangeUsdThb} editable={!usd} />}
+
         <div className="my-5 border-t" aria-hidden />
 
         <footer className="flex items-center gap-4">
@@ -328,14 +334,10 @@ function SummaryCard({
           </div>
           {score && <Stamp leadPct={score.leadPct} />}
         </footer>
-        {portfolio && (
-          <div className="text-muted-foreground mt-4 text-xs leading-relaxed">
-            {usd ? (
-              <p>ยอด USD ตรงกับใบยืนยันการซื้อขายและแอป Dime! ไม่ขึ้นกับอัตราแลกเปลี่ยน</p>
-            ) : (
-              <UsdThbSetting portfolio={portfolio} onChange={onChangeUsdThb} />
-            )}
-          </div>
+        {portfolio && usd && (
+          <p className="text-muted-foreground mt-4 text-xs leading-relaxed">
+            ยอด USD ตรงกับใบยืนยันการซื้อขายและแอป Dime! ไม่ขึ้นกับอัตราแลกเปลี่ยน
+          </p>
         )}
       </section>
     </Card>
@@ -346,82 +348,131 @@ function SummaryCard({
  * The USD/THB rate the values use, and a way to swap the market rate for
  * Dime!'s own (which sits a little below it), so totals match the app.
  */
-function UsdThbSetting({ portfolio, onChange }: { portfolio: Portfolio; onChange: (rate: number | null) => void }) {
+function UsdThbSetting({
+  portfolio,
+  onChange,
+  editable,
+}: {
+  portfolio: Portfolio
+  onChange: (rate: number | null) => void
+  editable: boolean
+}) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const rate = portfolio.timeline.usdThb
   const parsed = Number(draft)
   const valid = draft !== '' && parsed >= 20 && parsed <= 60
-
-  if (editing) {
-    return (
-      <form
-        className="space-y-2 pt-1"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!valid) return
-          onChange(parsed)
-          setEditing(false)
-        }}
-      >
-        <label className="block space-y-1">
-          <span className="text-foreground font-medium">เรทของ Dime! (บาทต่อ 1 ดอลลาร์)</span>
-          <Input
-            className="h-9 w-32 text-sm tabular-nums"
-            inputMode="decimal"
-            autoFocus
-            placeholder={formatNumber(rate, 2)}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
-          />
-        </label>
-        <p>หาได้จากแอป Dime!: เอามูลค่าเป็นบาทของหุ้นตัวไหนก็ได้ หารด้วยมูลค่าเป็น USD เช่น 33,420 ÷ 1,000 = 33.42</p>
-        <div className="flex gap-2">
-          <Button
-            type="submit"
-            size="sm"
-            className="bg-brand hover:bg-brand/90 rounded-full text-white"
-            disabled={!valid}
-          >
-            ใช้เรทนี้
-          </Button>
-          <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
-            ยกเลิก
-          </Button>
-        </div>
-      </form>
-    )
-  }
+  const source = portfolio.usdThbOverridden
+    ? `เรทที่คุณตั้ง ราคาตลาด ${formatNumber(portfolio.marketUsdThb, 2)}`
+    : 'ราคาตลาด'
 
   return (
-    <p>
-      เรท {formatNumber(rate, 2)} บาท/ดอลลาร์{' '}
-      {portfolio.usdThbOverridden
-        ? `(เรทที่คุณตั้ง ราคาตลาด ${formatNumber(portfolio.marketUsdThb, 2)})`
-        : '(ราคาตลาด)'}{' '}
-      <button
-        type="button"
-        className="text-brand font-medium underline-offset-2 hover:underline"
-        onClick={() => {
-          setDraft(portfolio.usdThbOverridden ? String(rate) : '')
-          setEditing(true)
-        }}
-      >
-        {portfolio.usdThbOverridden ? 'แก้เรท' : 'ใช้เรทของ Dime!'}
-      </button>
-      {portfolio.usdThbOverridden && (
-        <>
-          {' · '}
+    <div className="bg-muted/60 mt-5 rounded-2xl px-4 py-3 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <p className="tabular-nums" title={source}>
+          1 USD = {formatNumber(rate, 2)} THB
+        </p>
+        {editable && (
           <button
             type="button"
-            className="text-brand font-medium underline-offset-2 hover:underline"
-            onClick={() => onChange(null)}
+            className="flex items-center gap-1 font-medium"
+            aria-expanded={editing}
+            onClick={() => {
+              setDraft(portfolio.usdThbOverridden ? String(rate) : '')
+              setEditing(!editing)
+            }}
           >
-            ใช้ราคาตลาด
+            อัตราแลกเปลี่ยน
+            <ChevronRight className={`size-4 transition-transform ${editing ? 'rotate-90' : ''}`} aria-hidden />
           </button>
-        </>
+        )}
+      </div>
+      {editing && (
+        <form
+          className="text-muted-foreground mt-3 space-y-2 border-t pt-3 text-xs leading-relaxed"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!valid) return
+            onChange(parsed)
+            setEditing(false)
+          }}
+        >
+          <p>ตอนนี้ใช้: {source}</p>
+          <label className="block space-y-1">
+            <span className="text-foreground font-medium">เรทของ Dime! (บาทต่อ 1 ดอลลาร์)</span>
+            <Input
+              className="h-9 w-32 text-sm tabular-nums"
+              inputMode="decimal"
+              autoFocus
+              placeholder={formatNumber(rate, 2)}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
+            />
+          </label>
+          <p>หาได้จากแอป Dime!: เอามูลค่าเป็นบาทของหุ้นตัวไหนก็ได้ หารด้วยมูลค่าเป็น USD เช่น 33,420 ÷ 1,000 = 33.42</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              className="bg-brand hover:bg-brand/90 rounded-full text-white"
+              disabled={!valid}
+            >
+              ใช้เรทนี้
+            </Button>
+            {portfolio.usdThbOverridden && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => {
+                  onChange(null)
+                  setEditing(false)
+                }}
+              >
+                ใช้ราคาตลาด
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
+              ยกเลิก
+            </Button>
+          </div>
+        </form>
       )}
-    </p>
+    </div>
+  )
+}
+
+/** Profit on what's still held: price vs average cost, as % of that cost and in money. */
+function HeldProfit({
+  unrealized,
+  heldValue,
+  signed,
+  pending,
+}: {
+  unrealized: number | null
+  heldValue: number | null
+  signed: (value: number | null) => string
+  pending: string
+}) {
+  if (unrealized == null || heldValue == null) {
+    return <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถือออยู่ {pending}</p>
+  }
+  const cost = heldValue - unrealized
+  const pct = cost > 0 ? (unrealized / cost) * 100 : null
+  const up = unrealized >= 0
+  const Arrow = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <div className="space-y-1" title="สินทรัพย์ที่ยังถืออยู่: ราคาตอนนี้เทียบกับต้นทุนเฉลี่ย (เหมือนในแอป Dime!)">
+      <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถือออยู่</p>
+      <p
+        className={`flex flex-wrap items-center text-lg font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
+      >
+        <Arrow className="size-5" aria-hidden />
+        {pct == null ? '—' : formatPercent(Math.abs(pct), { decimals: 2 })}
+        <span className="ml-1.5">({signed(unrealized)})</span>
+      </p>
+    </div>
   )
 }
 
