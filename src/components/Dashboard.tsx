@@ -266,18 +266,6 @@ function SummaryCard({
                 pending={!portfolio}
                 title={`วันซื้อขายล่าสุดของตลาดสหรัฐฯ${portfolio ? ` (${formatDate(portfolio.timeline.latestSession)})` : ''} เทียบกับราคาปิดก่อนหน้า${usd ? '' : ' รวมการเปลี่ยนแปลงของค่าเงิน USD/THB'} ${TWR_HINT}`}
               />
-              <Delta
-                label="MoM"
-                change={usd ? portfolio?.momUsd : portfolio?.mom}
-                pending={!portfolio}
-                title={TWR_HINT}
-              />
-              <Delta
-                label="YoY"
-                change={usd ? portfolio?.yoyUsd : portfolio?.yoy}
-                pending={!portfolio}
-                title={TWR_HINT}
-              />
             </div>
           </div>
 
