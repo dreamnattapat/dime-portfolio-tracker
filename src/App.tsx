@@ -196,7 +196,10 @@ export default function App() {
           ) : (
             <header className="space-y-4">
               <div className="space-y-2">
-                <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
+                <p className="text-brand flex items-center gap-2 text-sm font-semibold">
+                  <img src="/favicon.svg" alt="" className="size-7" />
+                  ส่องพอร์ต Dime
+                </p>
                 <h1 className="font-display text-[1.75rem] leading-tight font-medium sm:text-4xl">
                   สรุปพอร์ตจากอีเมลของคุณ
                 </h1>
@@ -281,7 +284,10 @@ export default function App() {
         <>
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-brand text-sm font-semibold">ส่องพอร์ต Dime</p>
+              <p className="text-brand flex items-center gap-2 text-sm font-semibold">
+                <img src="/favicon.svg" alt="" className="size-7" />
+                ส่องพอร์ต Dime
+              </p>
               <div className="flex items-center gap-2">
                 <h1 className="font-display text-2xl font-medium sm:text-3xl">พอร์ตของคุณ</h1>
                 <button
