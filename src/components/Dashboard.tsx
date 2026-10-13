@@ -456,7 +456,7 @@ function HeldProfit({
   pending: string
 }) {
   if (unrealized == null || heldValue == null) {
-    return <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถือออยู่ {pending}</p>
+    return <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถืออยู่ {pending}</p>
   }
   const cost = heldValue - unrealized
   const pct = cost > 0 ? (unrealized / cost) * 100 : null
@@ -464,7 +464,7 @@ function HeldProfit({
   const Arrow = up ? ArrowUpRight : ArrowDownRight
   return (
     <div className="space-y-1" title="สินทรัพย์ที่ยังถืออยู่: ราคาตอนนี้เทียบกับต้นทุนเฉลี่ย (เหมือนในแอป Dime!)">
-      <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถือออยู่</p>
+      <p className="text-muted-foreground text-sm">กำไรของสินทรัพย์ที่ถืออยู่</p>
       <p
         className={`flex flex-wrap items-center text-sm font-semibold tabular-nums ${up ? 'text-delta-up' : 'text-delta-down'}`}
       >
