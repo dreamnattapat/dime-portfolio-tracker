@@ -282,12 +282,18 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                     {memo.stance && <span className="text-muted-foreground font-normal"> · {memo.stance}</span>}
                   </span>
                   <span className="text-muted-foreground block text-xs">{memo.title}</span>
+                  {memo.late && (
+                    <span className="bg-brand-soft text-brand mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      เขียนหลังประชุม
+                    </span>
+                  )}
                 </span>
                 <ChevronDown
                   className="text-muted-foreground size-4 transition-transform group-open:rotate-180"
                   aria-hidden
                 />
               </summary>
+              {memo.late && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{memo.late}</p>}
               <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">
                 {memo.points.map((p, i) => (
                   <li key={i}>{p}</li>

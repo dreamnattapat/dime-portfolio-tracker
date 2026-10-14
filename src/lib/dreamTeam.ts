@@ -103,6 +103,8 @@ export type DreamMemo = {
   title: string
   /** An optional one-word view. */
   stance?: string
+  /** Set when the memo was written after the meeting, by someone who wasn't in the room. */
+  late?: string
   points: string[]
   sources?: { title: string; url: string }[]
 }
