@@ -5,22 +5,35 @@
  *
  *   node scripts/dream-check.ts
  */
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 
-import type { DreamLedger } from '../src/lib/dream.ts'
+import {
+  firstSessionAfter,
+  orderKey,
+  ORDERS_LOCKED_FROM,
+  type DreamLedger,
+  type DreamOrder,
+  type Postmarks,
+} from '../src/lib/dream.ts'
 import {
   DREAM_AGENTS,
   DREAM_THEMES,
+  INTEGRITY_FROM_MEETING,
+  INTEGRITY_FROM_RETRO,
   LYNCH_CATEGORIES,
   MAX_HOLDINGS,
+  PRICE_CHECK_TOLERANCE_PCT,
   RR_OK,
   rewardRisk,
   type DreamLesson,
   type DreamReport,
   type DreamRetro,
+  type DreamRuleChange,
 } from '../src/lib/dreamTeam.ts'
 
 const problems: string[] = []
+const warnings: string[] = []
 const fail = (message: string) => problems.push(message)
 const read = <T>(path: string): T | null => {
   try {
@@ -35,9 +48,23 @@ const TICKER = /^[A-Z][A-Z0-9.]{0,9}$/
 
 const ledger = read<DreamLedger>('public/dream/ledger.json')
 const index = read<{ reports: string[] }>('public/dream/reports/index.json')
-const state = existsSync('public/dream/state.json')
-  ? read<{ cashUsd: number; holdings: { ticker: string; valueUsd: number }[] }>('public/dream/state.json')
-  : null
+type StateFile = {
+  closedThrough: string
+  cashUsd: number
+  holdings: { ticker: string; valueUsd: number; priceUsd: number }[]
+  orders?: (Partial<DreamOrder> & { id: string; status: string })[]
+  priceChecks?: {
+    reportDate: string
+    ticker: string
+    priceUsd: number
+    closeDate: string
+    closeUsd: number
+    diffPct: number
+  }[]
+}
+const state = existsSync('public/dream/state.json') ? read<StateFile>('public/dream/state.json') : null
+const VERDICTS = ['right', 'wrong', 'lucky', 'unlucky', 'too-early']
+const daysBetween = (a: string, b: string) => (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000
 
 if (ledger) {
   if (ledger.orders.some((o) => o.usd != null && o.usd < 200 && o.side === 'buy'))
@@ -91,6 +118,67 @@ if (ledger) {
   }
 }
 
+// ---------- Integrity: orders are final once placed, and never placed after their session opened ----------
+if (ledger) {
+  // 1. Against what's already published (origin/main, or the last commit): nothing changed or removed, and new
+  //    orders only for sessions that haven't opened yet.
+  const published = (() => {
+    for (const ref of ['origin/main', 'HEAD']) {
+      try {
+        const text = execFileSync('git', ['show', `${ref}:public/dream/ledger.json`], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        })
+        return (JSON.parse(text) as DreamLedger).orders
+      } catch {
+        // not a git checkout, or no such ref: try the next
+      }
+    }
+    return null
+  })()
+  if (published) {
+    const now = new Map(ledger.orders.map((o) => [o.id, o]))
+    for (const old of published) {
+      const cur = now.get(old.id)
+      if (!cur) fail(`order ${old.id} was removed: placed orders are final`)
+      else if (orderKey(cur) !== orderKey(old)) fail(`order ${old.id} was changed: placed orders are final`)
+    }
+    const earliest = firstSessionAfter(new Date())
+    for (const o of ledger.orders)
+      if (!published.some((p) => p.id === o.id) && o.session < earliest)
+        fail(`order ${o.id}: session ${o.session} has already opened; the earliest is ${earliest}`)
+  }
+  // 2. From the whole history (postmarks.json, written by the Action): changes and removals since the lock.
+  const postmarks = existsSync('public/dream/postmarks.json') ? read<Postmarks>('public/dream/postmarks.json') : null
+  for (const [id, pm] of Object.entries(postmarks?.orders ?? {}))
+    if (pm.edits && pm.at >= ORDERS_LOCKED_FROM) fail(`order ${id} was changed on ${pm.at} after it was placed`)
+  for (const r of postmarks?.removed ?? [])
+    if (r.at >= ORDERS_LOCKED_FROM) fail(`order ${r.id} was removed from the ledger on ${r.at}`)
+  // 3. Every order the engine has filled is still in the ledger as it was filled.
+  for (const f of state?.orders ?? []) {
+    if (f.status !== 'filled') continue
+    const o = ledger.orders.find((x) => x.id === f.id)
+    if (!o) {
+      fail(`filled order ${f.id} is missing from the ledger`)
+      continue
+    }
+    for (const k of ['ticker', 'side', 'session', 'usd', 'fraction'] as const)
+      if (f[k] !== undefined && f[k] !== o[k]) fail(`filled order ${f.id}: ${k} changed after it filled`)
+  }
+}
+
+// The rules can change, but only forward: each change takes effect from a later meeting.
+const rules = existsSync('public/dream/rules.json')
+  ? (read<{ changes: DreamRuleChange[] }>('public/dream/rules.json')?.changes ?? [])
+  : []
+for (const [i, r] of rules.entries()) {
+  const where = `rule change ${i + 1}`
+  if (!ISO.test(r.date ?? '') || !ISO.test(r.effective ?? '')) fail(`${where}: date and effective must be YYYY-MM-DD`)
+  if (r.effective < r.date) fail(`${where}: takes effect before it was decided`)
+  if (!r.change?.trim() || !r.why?.trim()) fail(`${where}: needs change and why`)
+  if (i > 0 && r.date < rules[i - 1].date) fail(`${where}: changes must be oldest first`)
+}
+
 if (index) {
   const sorted = [...index.reports].sort()
   if (sorted.join() !== index.reports.join() || new Set(sorted).size !== sorted.length)
@@ -101,6 +189,34 @@ if (index) {
     const where = `report ${date}`
     if (report.date !== date) fail(`${where}: date field doesn't match the file name`)
     if (!report.headline?.trim() || !report.summary?.trim()) fail(`${where}: needs headline and summary`)
+    if (date >= INTEGRITY_FROM_MEETING) {
+      if (!report.model?.trim()) fail(`${where}: needs "model", the AI model that ran the meeting`)
+      for (const d of report.decisions ?? []) {
+        if (d.action !== 'buy') continue
+        if ((d.bearCase ?? []).filter((p) => p.trim()).length < 2 || !d.bearAnswer?.trim())
+          fail(`${where}: ${d.ticker} is a buy and needs a bearCase (2+ points) and the Captain's bearAnswer`)
+      }
+      // Prices of what we hold must match the last close in state.json (when it is the close before the meeting).
+      if (state && state.closedThrough < date && daysBetween(state.closedThrough, date) <= 4)
+        for (const d of report.decisions ?? []) {
+          const h = state.holdings.find((x) => x.ticker === d.ticker)
+          if (!h || d.priceUsd == null) continue
+          const diff = (d.priceUsd / h.priceUsd - 1) * 100
+          if (Math.abs(diff) > PRICE_CHECK_TOLERANCE_PCT)
+            fail(
+              `${where}: ${d.ticker} priceUsd ${d.priceUsd} is ${diff.toFixed(1)}% off the last close in state.json (${h.priceUsd})`,
+            )
+        }
+    }
+    // Every price the Action checked against the market: a fresh mismatch fails (and emails the owner); older
+    // ones stay on the site with a warning and are for the retro to discuss.
+    for (const c of state?.priceChecks ?? []) {
+      if (c.reportDate !== date) continue
+      const message = `${where}: ${c.ticker} priceUsd ${c.priceUsd} vs the real close ${c.closeUsd} on ${c.closeDate} (${c.diffPct.toFixed(1)}%)`
+      const fresh = date === index.reports.at(-1) && daysBetween(date, state!.closedThrough) <= 1
+      if (date >= INTEGRITY_FROM_MEETING && fresh) fail(message)
+      else warnings.push(message)
+    }
     // Everyone who had joined by that meeting writes a memo.
     for (const { id } of DREAM_AGENTS.filter((a) => !a.since || date >= a.since)) {
       const memo = report.memos?.find((m) => m.agent === id)
@@ -191,15 +307,22 @@ for (const date of retros?.retros ?? []) {
   if (!retro.headline?.trim() || !retro.summary?.trim()) fail(`${where}: needs headline and summary`)
   if (typeof retro.score?.dreamPct !== 'number' || typeof retro.score?.spyPct !== 'number')
     fail(`${where}: needs score`)
-  for (const r of retro.reviews ?? [])
-    if (!['right', 'wrong', 'lucky', 'unlucky', 'too-early'].includes(r.verdict))
-      fail(`${where}: ${r.ticker} verdict "${r.verdict}"`)
+  for (const r of retro.reviews ?? []) {
+    if (!VERDICTS.includes(r.verdict)) fail(`${where}: ${r.ticker} verdict "${r.verdict}"`)
+    if (date >= INTEGRITY_FROM_RETRO && !VERDICTS.includes(r.blindVerdict ?? ''))
+      fail(`${where}: ${r.ticker} needs a blindVerdict, given before reading the team's reasoning`)
+  }
+  if (date >= INTEGRITY_FROM_RETRO && !retro.model?.trim()) fail(`${where}: needs "model"`)
   if ((retro.lessonChanges ?? []).filter((c) => c.change === 'added').length > 2)
     fail(`${where}: at most 2 new lessons a week`)
   for (const c of retro.lessonChanges ?? [])
     if (!lessonIds.has(c.id)) fail(`${where}: lesson ${c.id} isn't in lessons.json`)
 }
 
+if (warnings.length) {
+  console.warn(`Dream check: ${warnings.length} warning(s)`)
+  for (const w of warnings) console.warn(`- ${w}`)
+}
 if (problems.length) {
   console.error(`Dream check: ${problems.length} problem(s)`)
   for (const p of problems) console.error(`- ${p}`)

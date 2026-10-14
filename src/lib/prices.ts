@@ -7,7 +7,8 @@
  *
  * Ported from dime-auto-log-transactions/src/market_data.py. Closes are
  * split-adjusted but not dividend-adjusted (price return), matching the rest
- * of the dashboard, since dividends aren't tracked.
+ * of the dashboard, since dividends aren't tracked there. Team Lynch asks for
+ * the dividends too (`dividends: true`) and credits them itself.
  */
 
 export class PriceSeries {
@@ -20,6 +21,8 @@ export class PriceSeries {
   readonly latestAt: number | null
   /** [ISO date, ratio], e.g. 10 for a 10:1 split. */
   readonly splits: Split[]
+  /** [ex-dividend ISO date, USD per share], when asked for; split-adjusted like the closes. */
+  readonly dividends: Dividend[]
 
   constructor(
     symbol: string,
@@ -27,6 +30,7 @@ export class PriceSeries {
     latest: number,
     splits: Split[] = [],
     latestAt: number | null = null,
+    dividends: Dividend[] = [],
   ) {
     this.symbol = symbol
     this.dates = closes.map(([date]) => date)
@@ -34,6 +38,12 @@ export class PriceSeries {
     this.latest = latest
     this.latestAt = latestAt
     this.splits = splits
+    this.dividends = dividends
+  }
+
+  /** The dividend per share going ex on `day` (0 if none). */
+  dividendOn(day: string): number {
+    return this.dividends.reduce((sum, [date, amount]) => (date === day ? sum + amount : sum), 0)
   }
 
   /** Close on `day`, or the last trading day before it. */
@@ -62,6 +72,7 @@ export class PriceSeries {
       latest,
       this.splits,
       this.latestAt,
+      this.dividends.map(([date, amount]): Dividend => [date, amount * factor]),
     )
   }
 
@@ -76,6 +87,9 @@ export class PriceSeries {
 
 /** A stock split: [ISO date it takes effect, ratio], e.g. 10 for a 10:1 split. */
 export type Split = [string, number]
+
+/** A cash dividend: [ex-dividend ISO date, amount per share]. */
+export type Dividend = [string, number]
 
 /** How many of today's shares one share held on `day` became: the product of the splits after it. */
 export function splitFactorAfter(splits: Split[] | undefined, day: string): number {
@@ -94,7 +108,10 @@ type ChartResponse = {
       meta: { gmtoffset?: number; regularMarketPrice?: number; regularMarketTime?: number }
       timestamp?: number[]
       indicators: { quote: { close: (number | null)[] }[] }
-      events?: { splits?: Record<string, { date: number; numerator: number; denominator: number }> }
+      events?: {
+        splits?: Record<string, { date: number; numerator: number; denominator: number }>
+        dividends?: Record<string, { date: number; amount: number }>
+      }
     }[]
   }
 }
@@ -124,6 +141,10 @@ export function parseChart(symbol: string, data: ChartResponse): PriceSeries {
   const splits = Object.values(result.events?.splits ?? {})
     .filter((s) => s.denominator)
     .map((s): Split => [localDate(s.date, offset), s.numerator / s.denominator])
+  const dividends = Object.values(result.events?.dividends ?? {})
+    .filter((d) => d.amount > 0)
+    .map((d): Dividend => [localDate(d.date, offset), d.amount])
+    .sort((a, b) => a[0].localeCompare(b[0]))
   const { regularMarketPrice, regularMarketTime } = result.meta
   return new PriceSeries(
     symbol,
@@ -131,20 +152,31 @@ export function parseChart(symbol: string, data: ChartResponse): PriceSeries {
     regularMarketPrice ?? closes.at(-1)![1],
     splits,
     regularMarketTime ? regularMarketTime * 1000 : null,
+    dividends,
   )
 }
 
 // One download per symbol and date range per page load; the dashboard asks again whenever trades change.
 const cache = new Map<string, Promise<PriceSeries>>()
 
-export function fetchPrices(symbol: string, start: string, today: string): Promise<PriceSeries> {
+/** Yahoo's `events` parameter: splits only, or dividends and splits (as yfinance asks for them). */
+export function chartEvents(dividends = false): string {
+  return dividends ? 'div,splits' : 'split'
+}
+
+export function fetchPrices(
+  symbol: string,
+  start: string,
+  today: string,
+  { dividends = false }: { dividends?: boolean } = {},
+): Promise<PriceSeries> {
   const query = new URLSearchParams({
     // Pad the start so a trade on a market holiday can fall back to the
     // previous close. Whole days keep the URL stable, so it caches well.
     period1: String(midnightUtc(start, -7)),
     period2: String(midnightUtc(today, 1)),
     interval: '1d',
-    events: 'split',
+    events: chartEvents(dividends),
   })
   const url = `/api/chart/${encodeURIComponent(symbol)}?${query}`
   let prices = cache.get(url)

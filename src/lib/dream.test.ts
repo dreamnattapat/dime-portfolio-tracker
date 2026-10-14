@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeDream, decisionOutcomes, lastClosedSession, type DreamLedger, type DreamOrder } from './dream'
+import {
+  computeDream,
+  decisionOutcomes,
+  firstSessionAfter,
+  lastClosedSession,
+  THEME_ETFS,
+  type DreamLedger,
+  type DreamOrder,
+} from './dream'
 import { PriceSeries } from './prices'
 
 const days = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15']
@@ -134,6 +142,86 @@ describe('computeDream', () => {
       '2026-10-15',
     )
     expect(state.fills[0]).toMatchObject({ status: 'filled', fillDate: '2026-10-12' })
+  })
+})
+
+describe('integrity', () => {
+  const prices = new Map([['NVDA', series('NVDA', [50, 55, 60, 66], 70)]])
+
+  it('moves an order committed after its session opened to the next session', () => {
+    const buy = order({ ticker: 'NVDA', side: 'buy', session: '2026-10-13', usd: 1000 })
+    // 10:00 in New York on the 13th: the 13th's session had already opened.
+    const late = computeDream(ledger([buy]), spy, prices, '2026-10-16', '2026-10-15', {
+      postmarks: { [buy.id]: { at: '2026-10-13T14:00:00Z' } },
+    })
+    expect(late.fills[0]).toMatchObject({
+      late: true,
+      effectiveSession: '2026-10-14',
+      fillDate: '2026-10-14',
+      price: 60,
+    })
+    expect(late.fills[0].note).toMatch(/เลื่อน/)
+    // 9:00 in New York: still before the open, so it fills as planned.
+    const onTime = computeDream(ledger([buy]), spy, prices, '2026-10-16', '2026-10-15', {
+      postmarks: { [buy.id]: { at: '2026-10-13T13:00:00Z' } },
+    })
+    expect(onTime.fills[0]).toMatchObject({ effectiveSession: '2026-10-13', fillDate: '2026-10-13', price: 55 })
+    expect(onTime.fills[0].late).toBeUndefined()
+  })
+
+  it('knows when the New York session opens', () => {
+    expect(firstSessionAfter(new Date('2026-10-19T11:00:00Z'))).toBe('2026-10-19') // Monday 18:00 Bangkok
+    expect(firstSessionAfter(new Date('2026-10-19T13:30:00Z'))).toBe('2026-10-20') // 9:30 New York (EDT)
+    expect(firstSessionAfter(new Date('2026-12-07T14:29:00Z'))).toBe('2026-12-07') // 9:29 New York (EST)
+  })
+
+  it('pays dividends after tax into cash, and reinvests them in the benchmarks', () => {
+    const withDiv = (symbol: string, closes: number[], div: [string, number][]) =>
+      new PriceSeries(
+        symbol,
+        [['2026-10-09', closes[0]], ...days.map((d, i): [string, number] => [d, closes[i]])],
+        closes.at(-1)!,
+        [],
+        null,
+        div,
+      )
+    const flat = [100, 100, 100, 100]
+    const spyDiv = withDiv('SPY', flat, [['2026-10-14', 2]])
+    const stock = new Map([
+      [
+        'KO',
+        withDiv(
+          'KO',
+          [50, 50, 50, 50],
+          [
+            ['2026-10-14', 1],
+            ['2026-10-12', 9],
+          ],
+        ),
+      ],
+    ])
+    const state = computeDream(
+      ledger([order({ ticker: 'KO', side: 'buy', session: '2026-10-12', usd: 5000 })]),
+      spyDiv,
+      stock,
+      '2026-10-15',
+      '2026-10-15',
+    )
+    // 100 shares bought at the 12th's close: no dividend that day (ex-date before we held), $1 a share on the 14th, 15% tax.
+    expect(state.dividendsUsd).toBeCloseTo(100 * 1 * 0.85)
+    expect(state.cashUsd).toBeCloseTo(10_000 - 5000 * 1.001605 + 85)
+    // SPY: 100 units at 100, $2 a share after tax buys 1.7 more units at 100.
+    expect(state.spyReturnPct).toBeCloseTo(1.7)
+  })
+
+  it('tracks an equal-weight basket of the four theme ETFs', () => {
+    const themes = new Map(
+      Object.values(THEME_ETFS).map((t, i) => [t, series(t, i === 0 ? [10, 10, 20, 20] : [10, 10, 10, 10])]),
+    )
+    const state = computeDream(ledger([]), spy, new Map(), '2026-10-15', '2026-10-15', { themes })
+    // A quarter of the cash doubled: +25%.
+    expect(state.themeReturnPct).toBeCloseTo(25)
+    expect(computeDream(ledger([]), spy, new Map(), '2026-10-15', '2026-10-15').themeReturnPct).toBeNull()
   })
 })
 

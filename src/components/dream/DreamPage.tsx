@@ -19,6 +19,8 @@ import {
   type DreamLesson,
   type DreamReport,
   type DreamRetro,
+  type DreamRuleChange,
+  EARLY_SESSIONS,
   type LynchCategory,
 } from '@/lib/dreamTeam'
 import { formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '@/lib/format'
@@ -43,7 +45,7 @@ export function DreamPage() {
         <p className="text-brand text-sm font-semibold">ความท้าทาย · สไตล์ Peter Lynch</p>
         <h1 className="font-display text-3xl font-medium sm:text-4xl">ทีม Lynch</h1>
         <p className="text-muted-foreground max-w-2xl leading-relaxed">
-          ทีม AI 5 ตัว ลงทุนตามหลักของ Peter Lynch เฉพาะหุ้นเทคโนโลยี อวกาศ สุขภาพ และพลังงาน ด้วยเงินสมมติ $
+          ทีม AI 7 ตัว ลงทุนตามหลักของ Peter Lynch เฉพาะหุ้นเทคโนโลยี อวกาศ สุขภาพ และพลังงาน ด้วยเงินสมมติ $
           {formatNumber(data?.ledger.startingCashUsd ?? 10_000, 0)} เป้าหมายเดียว: ชนะ S&P 500
           ตามล่าหุ้นที่โตได้หลายเท่า (multi-bagger) ประชุมทุกวันจันทร์ก่อนตลาดสหรัฐฯ เปิด
           และเลือกได้ว่าจะซื้อขายที่ราคาปิดของวันไหนในสัปดาห์นั้น
@@ -112,7 +114,14 @@ function Scoreboard({ data }: { data: DreamData }) {
             </div>
           </div>
         </div>
-        <dl className="grid grid-cols-2 gap-4 text-sm sm:max-w-md">
+        {started && sessions < EARLY_SESSIONS && (
+          <p className="bg-muted text-muted-foreground rounded-2xl px-4 py-3 text-xs leading-relaxed">
+            <span className="text-foreground font-semibold">ยังเร็วเกินไปที่จะสรุป</span> ผ่านไป {Math.max(sessions, 1)}{' '}
+            จากราว {EARLY_SESSIONS} วันทำการ (6 เดือน) ช่วงแรกแบบนี้ ชนะหรือแพ้ S&P 500 ส่วนใหญ่มาจากดวงและจังหวะตลาด
+            ยังบอกไม่ได้ว่าวิธีของทีมได้ผล
+          </p>
+        )}
+        <dl className="grid grid-cols-2 gap-4 text-sm sm:max-w-xl sm:grid-cols-3">
           <div>
             <dt className="text-muted-foreground">ทีม Lynch</dt>
             <dd className="text-lg font-semibold tabular-nums">
@@ -125,7 +134,20 @@ function Scoreboard({ data }: { data: DreamData }) {
               {formatPercent(state.spyReturnPct, { signed: true, decimals: 2 })}
             </dd>
           </div>
+          {state.themeReturnPct != null && (
+            <div title="เงินเท่ากันแบ่ง 4 ส่วนเท่ากันใน XLK (เทค), UFO (อวกาศ), XLV (สุขภาพ), XLE (พลังงาน) แล้วถือไว้ ถ้าทีมแพ้เส้นนี้ แปลว่าเลือกธีมถูกแต่เลือกหุ้นไม่เก่ง">
+              <dt className="text-muted-foreground">ETF 4 ธีม</dt>
+              <dd className="text-lg font-semibold tabular-nums">
+                {formatPercent(state.themeReturnPct, { signed: true, decimals: 2 })}
+              </dd>
+            </div>
+          )}
         </dl>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          ทุกฝั่งรวมเงินปันผลหลังหักภาษีสหรัฐฯ 15%
+          {state.dividendsUsd > 0 && ` (ทีมได้ปันผลแล้ว ${formatMoney(state.dividendsUsd, '$')})`} · ETF 4 ธีม
+          คือการแบ่งเงินเท่ากันใน XLK, UFO, XLV และ XLE ใช้ดูว่าทีมชนะเพราะเลือกหุ้นเก่ง หรือแค่เพราะเลือกธีม
+        </p>
         {state.points.length > 2 && <DreamChart points={state.points} startingCash={ledger.startingCashUsd} />}
       </CardContent>
     </Card>
@@ -197,9 +219,30 @@ function LatestMeeting({ report, fills, empty }: { report: DreamReport | null; f
   )
 }
 
+type PriceCheck = { reportDate: string; ticker: string; closeUsd: number; closeDate: string; diffPct: number }
+let priceChecksOnce: Promise<PriceCheck[]> | null = null
+
+/** Prices written in reports that don't match the real close (checked daily by the Action, in state.json). */
+function usePriceChecks(date: string): PriceCheck[] {
+  const [checks, setChecks] = useState<PriceCheck[]>([])
+  useEffect(() => {
+    priceChecksOnce ??= fetchDreamJson<{ priceChecks?: PriceCheck[] }>('/dream/state.json').then(
+      (s) => s.priceChecks ?? [],
+      () => [],
+    )
+    let live = true
+    priceChecksOnce.then((all) => live && setChecks(all.filter((c) => c.reportDate === date)))
+    return () => {
+      live = false
+    }
+  }, [date])
+  return checks
+}
+
 /** One meeting: Captain's summary, the decisions and every agent's memo. */
 function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) {
   const byId = new Map(fills.map((f) => [f.id, f]))
+  const priceChecks = usePriceChecks(report.date)
   return (
     <div className="space-y-5">
       <div className="flex gap-3">
@@ -207,6 +250,7 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
         <div className="space-y-1">
           <p className="font-display text-lg leading-snug font-medium">{report.headline}</p>
           <p className="text-muted-foreground text-sm leading-relaxed">{report.summary}</p>
+          {report.model && <p className="text-muted-foreground text-xs">ประชุมโดยโมเดล {report.model}</p>}
         </div>
       </div>
 
@@ -241,6 +285,14 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                   {fill && <FillStatus fill={fill} />}
                 </div>
                 {d.targetUsd != null && d.stopUsd != null && d.priceUsd != null && <RewardRiskLine decision={d} />}
+                {priceChecks
+                  .filter((c) => c.ticker === d.ticker)
+                  .map((c) => (
+                    <p key={c.ticker} className="text-delta-down text-xs">
+                      ⚠ ราคาตอนประชุมในรายงานต่างจากราคาปิดจริง {formatMoney(c.closeUsd, '$')} (
+                      {formatDate(c.closeDate)}) อยู่ {formatPercent(c.diffPct, { signed: true, decimals: 1 })}
+                    </p>
+                  ))}
                 {d.story && (
                   <details className="group/story">
                     <summary className="text-brand cursor-pointer list-none text-xs font-medium [&::-webkit-details-marker]:hidden">
@@ -256,6 +308,30 @@ function Report({ report, fills }: { report: DreamReport; fills: DreamFill[] }) 
                         <p>
                           <span className="font-semibold">ขายเมื่อ: </span>
                           {d.sellIf}
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {d.bearCase && d.bearCase.length > 0 && (
+                  <details className="group/bear">
+                    <summary className="text-brand cursor-pointer list-none text-xs font-medium [&::-webkit-details-marker]:hidden">
+                      ฝ่ายค้าน: ทำไมอาจผิด
+                      <ChevronDown
+                        className="ml-0.5 inline size-3 transition-transform group-open/bear:rotate-180"
+                        aria-hidden
+                      />
+                    </summary>
+                    <div className="bg-muted/60 mt-2 space-y-2 rounded-xl px-3 py-2 text-xs leading-relaxed">
+                      <ul className="list-disc space-y-1 pl-4">
+                        {d.bearCase.map((p, j) => (
+                          <li key={j}>{p}</li>
+                        ))}
+                      </ul>
+                      {d.bearAnswer && (
+                        <p>
+                          <span className="font-semibold">กัปตันตอบ: </span>
+                          {d.bearAnswer}
                         </p>
                       )}
                     </div>
@@ -358,7 +434,10 @@ function DecisionBadge({ action }: { action: keyof typeof ACTIONS }) {
 function FillStatus({ fill }: { fill: DreamFill }) {
   if (fill.status === 'pending')
     return (
-      <span className="text-muted-foreground w-full text-xs sm:w-auto">รอราคาปิดของรอบ {formatDate(fill.session)}</span>
+      <span className="text-muted-foreground w-full text-xs sm:w-auto">
+        รอราคาปิดของรอบ {formatDate(fill.effectiveSession)}
+        {fill.late && ' (ส่งคำสั่งหลังตลาดเปิด จึงเลื่อนรอบ)'}
+      </span>
     )
   if (fill.status === 'rejected')
     return <span className="text-delta-down w-full text-xs sm:w-auto">ไม่สำเร็จ: {fill.note}</span>
@@ -601,7 +680,7 @@ function TradeLog({ fills }: { fills: DreamFill[] }) {
           <TableBody>
             {fills.toReversed().map((f) => (
               <TableRow key={f.id}>
-                <TableCell>{formatDate(f.fillDate ?? f.session)}</TableCell>
+                <TableCell>{formatDate(f.fillDate ?? f.effectiveSession)}</TableCell>
                 <TableCell>
                   <TradeBadge kind={f.side === 'buy' ? 'Buy' : 'Sell'} />
                 </TableCell>
@@ -624,6 +703,7 @@ function TradeLog({ fills }: { fills: DreamFill[] }) {
                 </TableCell>
                 <TableCell className="text-xs">
                   {f.status === 'filled' ? 'สำเร็จ' : f.status === 'pending' ? 'รอราคาปิด' : `ไม่สำเร็จ: ${f.note}`}
+                  {f.late && <span className="text-delta-down block">ส่งช้า เลื่อนรอบ</span>}
                 </TableCell>
               </TableRow>
             ))}
@@ -635,6 +715,13 @@ function TradeLog({ fills }: { fills: DreamFill[] }) {
 }
 
 function Rules() {
+  const [changes, setChanges] = useState<DreamRuleChange[]>([])
+  useEffect(() => {
+    fetchDreamJson<{ changes: DreamRuleChange[] }>('/dream/rules.json').then(
+      (r) => setChanges(r.changes),
+      () => {},
+    )
+  }, [])
   return (
     <Card>
       <CardHeader>
@@ -679,9 +766,43 @@ function Rules() {
             ไม่เกิน 6 คำสั่งต่อการประชุม (ครั้งแรก 10) และไม่ขายหุ้นที่เพิ่งซื้อไม่ถึง 4 สัปดาห์
             เว้นแต่เรื่องเล่าเปลี่ยน
           </li>
-          <li>เทียบกับการซื้อ SPY ด้วยเงินเท่ากันที่ราคาปิดวันแรกแล้วถือไว้ ไม่รวมเงินปันผลทั้งสองฝั่ง</li>
-          <li>ทุกตัวเลขในบันทึกต้องมีแหล่งที่มา หาได้จากลิงก์ใต้บันทึกของแต่ละคน</li>
+          <li>
+            เทียบกับการซื้อ SPY ด้วยเงินเท่ากันที่ราคาปิดวันแรกแล้วถือไว้ และกับ ETF 4 ธีม (XLK, UFO, XLV, XLE เท่าๆ
+            กัน) ทุกฝั่งรวมเงินปันผลหลังหักภาษีสหรัฐฯ 15%
+          </li>
+          <li>
+            คำสั่งแก้หรือลบไม่ได้เมื่อ commit แล้ว และถ้า commit หลังตลาดรอบนั้นเปิด จะเลื่อนไปรอบถัดไปเอง
+            (ระบบดูเวลาจากประวัติ git ทุกวัน)
+          </li>
+          <li>
+            ทุกการซื้อใหม่ต้องมีฝ่ายค้านเขียนเหตุผลที่อาจผิด ราคาในรายงานต้องตรงราคาปิดจริง และทุกตัวเลขต้องมีแหล่งที่มา
+            (ตัวเลขเศรษฐกิจใช้แหล่งทางการก่อน)
+          </li>
+          <li>ทบทวนทุกสัปดาห์โดยให้คำตัดสินแบบไม่ดูเหตุผลของทีมก่อน แล้วค่อยเทียบ ไม่ให้ทีมตรวจการบ้านตัวเอง</li>
+          <li>เปลี่ยนกติกาได้เฉพาะเจ้าของ มีผลกับการประชุมถัดไป และไม่แก้ผลที่ผ่านมา</li>
         </ul>
+        {changes.length > 0 && (
+          <details className="group/rules">
+            <summary className="cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden">
+              ประวัติการเปลี่ยนกติกา ({changes.length})
+              <ChevronDown
+                className="text-muted-foreground ml-1 inline size-4 transition-transform group-open/rules:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <ol className="mt-3 space-y-3">
+              {changes.toReversed().map((c, i) => (
+                <li key={i} className="border-l-2 pl-3">
+                  <p className="text-muted-foreground text-xs">
+                    ตัดสินใจ {formatDate(c.date)} · มีผลตั้งแต่ {formatDate(c.effective)}
+                  </p>
+                  <p>{c.change}</p>
+                  <p className="text-muted-foreground text-xs">เหตุผล: {c.why}</p>
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
       </CardContent>
     </Card>
   )
@@ -749,6 +870,14 @@ function Lessons() {
                     >
                       {VERDICTS[r.verdict].label}
                     </span>
+                    {r.blindVerdict && r.blindVerdict !== r.verdict && (
+                      <span
+                        className="text-muted-foreground shrink-0 text-xs"
+                        title="คำตัดสินแรกจากผู้ทบทวนที่ยังไม่ได้อ่านเหตุผลของทีม"
+                      >
+                        (ก่อนอ่านเหตุผล: {VERDICTS[r.blindVerdict].label})
+                      </span>
+                    )}
                     {r.vsSpyPct != null && (
                       <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
                         {formatPercent(r.vsSpyPct, { signed: true })} เทียบ S&P 500

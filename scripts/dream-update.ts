@@ -7,11 +7,19 @@
  *
  *   node scripts/dream-update.ts
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-import { computeDream, decisionOutcomes, lastClosedSession, type DreamLedger } from '../src/lib/dream.ts'
-import type { DreamReport } from '../src/lib/dreamTeam.ts'
-import { parseChart, yahooSymbol, type PriceSeries } from '../src/lib/prices.ts'
+import {
+  computeDream,
+  decisionOutcomes,
+  effectiveSession,
+  lastClosedSession,
+  THEME_ETFS,
+  type DreamLedger,
+  type Postmarks,
+} from '../src/lib/dream.ts'
+import { PRICE_CHECK_TOLERANCE_PCT, type DreamReport } from '../src/lib/dreamTeam.ts'
+import { chartEvents, parseChart, yahooSymbol, type PriceSeries } from '../src/lib/prices.ts'
 
 const LEDGER = 'public/dream/ledger.json'
 const STATE = 'public/dream/state.json'
@@ -23,7 +31,7 @@ async function fetchSeries(symbol: string, start: string, end: string): Promise<
     period1: String(day(start, -7)),
     period2: String(day(end, 1)),
     interval: '1d',
-    events: 'split',
+    events: chartEvents(true),
   }).toString()
   const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!response.ok) throw new Error(`${symbol}: HTTP ${response.status}`)
@@ -31,20 +39,29 @@ async function fetchSeries(symbol: string, start: string, end: string): Promise<
 }
 
 const ledger = JSON.parse(readFileSync(LEDGER, 'utf8')) as DreamLedger
+// When each order was committed (scripts/dream-postmark.ts runs first in the Action).
+const postmarks: Postmarks = existsSync('public/dream/postmarks.json')
+  ? (JSON.parse(readFileSync('public/dream/postmarks.json', 'utf8')) as Postmarks)
+  : { orders: {}, removed: [] }
 const now = new Date()
 const today = now.toISOString().slice(0, 10)
 const closedThrough = lastClosedSession(now)
 const index = JSON.parse(readFileSync('public/dream/reports/index.json', 'utf8')) as { reports: string[] }
-const decisions = index.reports.flatMap((date) => {
-  const report = JSON.parse(readFileSync(`public/dream/reports/${date}.json`, 'utf8')) as DreamReport
-  return report.decisions.map((d) => ({
-    reportDate: date,
-    // A decision with an order counts from the session the team chose for that order.
-    session: ledger.orders.find((o) => o.id === d.orderId)?.session ?? report.session,
-    ticker: d.ticker,
-    action: d.action,
-  }))
-})
+const reports = index.reports.map(
+  (date) => JSON.parse(readFileSync(`public/dream/reports/${date}.json`, 'utf8')) as DreamReport,
+)
+const decisions = reports.flatMap((report) =>
+  report.decisions.map((d) => {
+    // A decision with an order counts from the session that order really fills at.
+    const order = ledger.orders.find((o) => o.id === d.orderId)
+    return {
+      reportDate: report.date,
+      session: order ? effectiveSession(order, postmarks.orders[order.id]).session : report.session,
+      ticker: d.ticker,
+      action: d.action,
+    }
+  }),
+)
 const tickers = [...new Set([...ledger.orders.map((o) => o.ticker), ...decisions.map((d) => d.ticker)])]
 const spy = await fetchSeries('SPY', ledger.startDate, today)
 const prices = new Map<string, PriceSeries | null>(
@@ -59,7 +76,35 @@ const prices = new Map<string, PriceSeries | null>(
     }),
   ),
 )
-const state = computeDream(ledger, spy, prices, today, closedThrough)
+const themes = new Map<string, PriceSeries | null>(
+  await Promise.all(
+    Object.values(THEME_ETFS).map(async (t): Promise<[string, PriceSeries | null]> => {
+      try {
+        return [t, await fetchSeries(t, ledger.startDate, today)]
+      } catch (e) {
+        console.warn(`No prices for ${t}: ${(e as Error).message}`)
+        return [t, null]
+      }
+    }),
+  ),
+)
+const state = computeDream(ledger, spy, prices, today, closedThrough, { postmarks: postmarks.orders, themes })
+
+// Every price a meeting wrote down (priceUsd) against the real last close before that meeting.
+const priceChecks = reports.flatMap((report) =>
+  report.decisions.flatMap((d) => {
+    const series = prices.get(d.ticker)
+    if (d.priceUsd == null || !series) return []
+    const i = series.dates.findLastIndex((day) => day < report.date)
+    if (i < 0) return []
+    const closeDate = series.dates[i]
+    const closeUsd = series.on(closeDate)
+    const diffPct = (d.priceUsd / closeUsd - 1) * 100
+    return Math.abs(diffPct) > PRICE_CHECK_TOLERANCE_PCT
+      ? [{ reportDate: report.date, ticker: d.ticker, priceUsd: d.priceUsd, closeDate, closeUsd, diffPct }]
+      : []
+  }),
+)
 const outcomes = decisionOutcomes(decisions, spy, prices, closedThrough)
 const round = (x: number, d = 4) => Math.round(x * 10 ** d) / 10 ** d
 writeFileSync(
@@ -73,6 +118,8 @@ writeFileSync(
       returnPct: round(state.returnPct, 3),
       spyReturnPct: round(state.spyReturnPct, 3),
       leadPct: round(state.returnPct - state.spyReturnPct, 3),
+      themeReturnPct: state.themeReturnPct != null ? round(state.themeReturnPct, 3) : null,
+      dividendsUsd: round(state.dividendsUsd, 2),
       holdings: state.holdings.map((h) => ({
         ticker: h.ticker,
         units: round(h.units, 6),
@@ -85,8 +132,13 @@ writeFileSync(
       orders: state.fills.map((f) => ({
         id: f.id,
         session: f.session,
+        effectiveSession: f.effectiveSession,
+        postedAt: f.postedAt,
+        late: f.late,
         ticker: f.ticker,
         side: f.side,
+        usd: f.usd,
+        fraction: f.fraction,
         status: f.status,
         fillDate: f.fillDate,
         price: f.price && round(f.price),
@@ -98,7 +150,13 @@ writeFileSync(
         note: f.note,
       })),
       missing: state.missing,
-      points: state.points.map((p) => ({ date: p.date, valueUsd: round(p.value, 2), spyUsd: round(p.spy, 2) })),
+      points: state.points.map((p) => ({
+        date: p.date,
+        valueUsd: round(p.value, 2),
+        spyUsd: round(p.spy, 2),
+        themesUsd: p.themes != null ? round(p.themes, 2) : undefined,
+      })),
+      priceChecks: priceChecks.map((c) => ({ ...c, closeUsd: round(c.closeUsd), diffPct: round(c.diffPct, 2) })),
       outcomes: outcomes.map((o) => ({
         ...o,
         fromPrice: round(o.fromPrice),

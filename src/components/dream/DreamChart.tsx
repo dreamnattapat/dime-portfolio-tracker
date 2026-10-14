@@ -1,4 +1,4 @@
-import { ColorType, createChart, CrosshairMode, LineSeries, type Time } from 'lightweight-charts'
+import { ColorType, createChart, CrosshairMode, LineSeries, LineStyle, type Time } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
 
 import type { DreamPoint } from '@/lib/dream'
@@ -10,7 +10,7 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/** Dream vs the S&P 500, % since the start. */
+/** Dream vs the S&P 500 and the four-theme ETF basket, % since the start. */
 export function DreamChart({ points, startingCash }: { points: DreamPoint[]; startingCash: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<number | null>(null)
@@ -32,13 +32,21 @@ export function DreamChart({ points, startingCash }: { points: DreamPoint[]; sta
       handleScroll: false,
       handleScale: false,
     })
-    const line = (color: string) =>
+    const line = (color: string, dashed = false) =>
       chart.addSeries(LineSeries, {
         color: cssVar(color),
         lineWidth: 2,
+        lineStyle: dashed ? LineStyle.Dashed : LineStyle.Solid,
         priceLineVisible: false,
         lastValueVisible: false,
       })
+    // The basket is dashed and muted: a yardstick, not a contender.
+    if (points.some((p) => p.themes != null))
+      line('--series-invested', true).setData(
+        points
+          .filter((p) => p.themes != null)
+          .map((p) => ({ time: p.date as Time, value: toPct(p.themes!, startingCash) })),
+      )
     const spy = line('--series-spy')
     const dream = line('--series-dream')
     spy.setData(points.map((p) => ({ time: p.date as Time, value: toPct(p.spy, startingCash) })))
@@ -57,10 +65,19 @@ export function DreamChart({ points, startingCash }: { points: DreamPoint[]; sta
           [
             ['ทีม Lynch', '--series-dream', shown && pct(shown.value)],
             ['S&P 500', '--series-spy', shown && pct(shown.spy)],
+            ...(shown?.themes != null ? ([['ETF 4 ธีม', '--series-invested', pct(shown.themes)]] as const) : []),
           ] as const
         ).map(([label, color, value]) => (
           <div key={label} className="flex items-center gap-2">
-            <span className="h-0.5 w-4 rounded-full" style={{ background: `var(${color})` }} aria-hidden />
+            <span
+              className="h-0.5 w-4 rounded-full"
+              style={
+                color === '--series-invested'
+                  ? { backgroundImage: `repeating-linear-gradient(90deg, var(${color}) 0 4px, transparent 4px 7px)` }
+                  : { background: `var(${color})` }
+              }
+              aria-hidden
+            />
             <dt className="text-muted-foreground">{label}</dt>
             <dd className="font-semibold tabular-nums">{formatPercent(value, { signed: true, decimals: 2 })}</dd>
           </div>

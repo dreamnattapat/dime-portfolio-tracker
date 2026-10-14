@@ -135,6 +135,9 @@ export type DreamDecision = {
   stopWhy?: string
   /** Required when reward:risk is below 1:2: the team's verdict (keep, trim or sell) and why. */
   review?: string
+  /** For a new buy (from 19 Oct 2026): Story's case against it, 2–4 points, and the Captain's answer. */
+  bearCase?: string[]
+  bearAnswer?: string
   /** Lessons (lessons.json ids) this decision applied. */
   lessons?: string[]
 }
@@ -151,6 +154,8 @@ export type DreamReport = {
   decisions: DreamDecision[]
   /** What the team will watch before the next meeting. */
   nextWatch?: string[]
+  /** The AI model that ran the meeting (from 19 Oct 2026): a different model is a different team. */
+  model?: string
 }
 
 /**
@@ -193,10 +198,43 @@ export type DreamRetro = {
     /** right: good call; wrong: bad call; lucky: good result, bad reasoning; unlucky: bad result, sound reasoning; too-early: wait. */
     verdict: 'right' | 'wrong' | 'lucky' | 'unlucky' | 'too-early'
     note: string
+    /**
+     * The verdict a reviewer gave first, from the outcome and this week's news only, before reading the
+     * team's reasoning (from 17 Oct 2026), so the team doesn't only grade its own homework.
+     */
+    blindVerdict?: 'right' | 'wrong' | 'lucky' | 'unlucky' | 'too-early'
   }[]
   /** What changed in lessons.json. */
   lessonChanges: { id: string; change: 'added' | 'confirmed' | 'contradicted' | 'promoted' | 'retired'; note: string }[]
+  /** The AI model that ran the retro (from 17 Oct 2026). */
+  model?: string
 }
+
+/**
+ * A change to the rules of the challenge (public/dream/rules.json). Only the
+ * owner changes the rules; each change takes effect from a later meeting and
+ * never rewrites past results, so the rules can't be tuned to the scoreboard.
+ */
+export type DreamRuleChange = {
+  /** When it was decided, YYYY-MM-DD (Bangkok). */
+  date: string
+  /** The first meeting it applies to, YYYY-MM-DD. */
+  effective: string
+  /** What changed, in Thai. */
+  change: string
+  /** Why, in Thai. */
+  why: string
+}
+
+/** Meetings from this date need a bear case on new buys and the model's name; retros from the next date a blind verdict. */
+export const INTEGRITY_FROM_MEETING = '2026-10-19'
+export const INTEGRITY_FROM_RETRO = '2026-10-17'
+
+/** Results over fewer US sessions than this (about six months) are mostly luck: the site says so. */
+export const EARLY_SESSIONS = 126
+
+/** A price written in a report (priceUsd) may differ from the real last close by this much, %. */
+export const PRICE_CHECK_TOLERANCE_PCT = 1
 
 /** A concentrated portfolio: never more than this many holdings. */
 export const MAX_HOLDINGS = 5
