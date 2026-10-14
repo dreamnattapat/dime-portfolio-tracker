@@ -1,0 +1,54 @@
+{
+ "updatedAt": "2026-10-14T00:26:15.956Z",
+ "closedThrough": "2026-10-13",
+ "valueUsd": 10000,
+ "cashUsd": 10000,
+ "returnPct": 0,
+ "spyReturnPct": 0,
+ "leadPct": 0,
+ "holdings": [],
+ "orders": [
+  {
+   "id": "2026-10-13-1",
+   "session": "2026-10-14",
+   "ticker": "TOST",
+   "side": "buy",
+   "status": "pending"
+  },
+  {
+   "id": "2026-10-13-2",
+   "session": "2026-10-14",
+   "ticker": "VST",
+   "side": "buy",
+   "status": "pending"
+  },
+  {
+   "id": "2026-10-13-3",
+   "session": "2026-10-14",
+   "ticker": "RKLB",
+   "side": "buy",
+   "status": "pending"
+  },
+  {
+   "id": "2026-10-13-4",
+   "session": "2026-10-16",
+   "ticker": "TSM",
+   "side": "buy",
+   "status": "pending"
+  }
+ ],
+ "missing": [],
+ "points": [
+  {
+   "date": "2026-10-12",
+   "valueUsd": 10000,
+   "spyUsd": 10000
+  },
+  {
+   "date": "2026-10-14",
+   "valueUsd": 10000,
+   "spyUsd": 10000
+  }
+ ],
+ "outcomes": []
+}
