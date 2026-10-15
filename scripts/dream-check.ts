@@ -23,9 +23,11 @@ import {
   INTEGRITY_FROM_RETRO,
   LYNCH_CATEGORIES,
   MAX_HOLDINGS,
+  NEAR_STOP_PCT,
   PRICE_CHECK_TOLERANCE_PCT,
   RR_OK,
   rewardRisk,
+  stopGapPct,
   type DreamLesson,
   type DreamReport,
   type DreamRetro,
@@ -103,7 +105,9 @@ if (ledger) {
   // The latest meeting's buys can't spend more than the cash plus what its sells raise.
   const latest = index?.reports.at(-1)
   if (state && latest) {
-    const today = ledger.orders.filter((o) => o.reportDate === latest)
+    // Only what hasn't filled yet: filled orders have already left state.json's cash.
+    const filled = new Set((state.orders ?? []).filter((f) => f.status !== 'pending').map((f) => f.id))
+    const today = ledger.orders.filter((o) => o.reportDate === latest && !filled.has(o.id))
     const raised = today
       .filter((o) => o.side === 'sell')
       .reduce(
@@ -261,6 +265,10 @@ if (index) {
             fail(`${where}: ${d.ticker} is a buy at 1:${rr?.toFixed(2)}, under the 1:2 minimum`)
           if ((rr == null || Math.round(rr * 10) / 10 < RR_OK) && !d.review?.trim())
             fail(`${where}: ${d.ticker} is at 1:${rr?.toFixed(2)}, under 1:2, and needs a "review"`)
+          // Just above the stop the ratio balloons (1:300) while the stock is about to break: that needs a review too.
+          const gap = stopGapPct(d.priceUsd!, d.stopUsd!)
+          if (date >= INTEGRITY_FROM_MEETING && gap < NEAR_STOP_PCT && !d.review?.trim())
+            fail(`${where}: ${d.ticker} is ${gap.toFixed(1)}% above its stop and needs a "review"`)
         }
       }
       if (d.orderId && ledger && !ledger.orders.some((o) => o.id === d.orderId))

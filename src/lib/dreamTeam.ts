@@ -253,7 +253,21 @@ export const RR_REVIEW = 1.2
 
 export type RewardRiskVerdict = { label: string; tone: 'great' | 'ok' | 'weak' | 'review' }
 
-export function rewardRiskVerdict(exact: number | null): RewardRiskVerdict {
+/**
+ * Within this % above the stop, the ratio stops meaning anything: the risk left
+ * is tiny, so (target − price) ÷ (price − stop) shoots up (1:300) just as the
+ * stock is about to break its stop. Treat it as a warning, not a bargain.
+ */
+export const NEAR_STOP_PCT = 3
+
+/** How far the price is above the stop, % of the price (0 or less: the stop is hit). */
+export function stopGapPct(price: number, stop: number): number {
+  return ((price - stop) / price) * 100
+}
+
+export function rewardRiskVerdict(exact: number | null, gapPct?: number): RewardRiskVerdict {
+  if (gapPct != null && gapPct <= 0) return { label: 'หลุดจุดตัดขาดทุน', tone: 'review' }
+  if (gapPct != null && gapPct < NEAR_STOP_PCT) return { label: 'ใกล้จุดตัดขาดทุน', tone: 'review' }
   // Judged at one decimal, as written (1:2.0), so 1.98 counts as 1:2.
   const ratio = exact == null ? null : Math.round(exact * 10) / 10
   if (ratio == null || ratio < RR_REVIEW) return { label: 'ต้องทบทวน', tone: 'review' }

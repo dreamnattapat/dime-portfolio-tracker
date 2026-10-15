@@ -13,6 +13,8 @@ import {
   MAX_HOLDINGS,
   rewardRisk,
   rewardRiskVerdict,
+  NEAR_STOP_PCT,
+  stopGapPct,
   DREAM_THEMES,
   LYNCH_CATEGORIES,
   type DreamDecision,
@@ -460,7 +462,7 @@ const RR_TONE = {
 /** The target, the stop and what they add up to, for one decision. */
 function RewardRiskLine({ decision: d }: { decision: DreamDecision }) {
   const ratio = rewardRisk(d.priceUsd!, d.targetUsd!, d.stopUsd!)
-  const verdict = rewardRiskVerdict(ratio)
+  const verdict = rewardRiskVerdict(ratio, stopGapPct(d.priceUsd!, d.stopUsd!))
   return (
     <div className="space-y-1 text-xs">
       <p className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums">
@@ -582,11 +584,23 @@ function RewardRiskNow({ level, price }: { level?: DreamDecision; price: number 
   if (!level || level.targetUsd == null || level.stopUsd == null)
     return <span className="text-muted-foreground">—</span>
   const ratio = rewardRisk(price, level.targetUsd, level.stopUsd)
-  const verdict = rewardRiskVerdict(ratio)
+  const gap = stopGapPct(price, level.stopUsd)
+  const verdict = rewardRiskVerdict(ratio, gap)
   return (
     <>
-      <span className={`font-semibold ${RR_TONE[verdict.tone]}`}>
-        {ratio == null ? '—' : `1:${formatNumber(ratio, 1)}`}
+      <span
+        className={`font-semibold ${RR_TONE[verdict.tone]}`}
+        title={`เป้า ${formatMoney(level.targetUsd, '$')} · จุดตัดขาดทุน ${formatMoney(level.stopUsd, '$')}`}
+      >
+        {gap < NEAR_STOP_PCT
+          ? gap <= 0
+            ? `ต่ำกว่า ${formatMoney(level.stopUsd, '$')}`
+            : `ห่าง ${formatPercent(gap, { decimals: 1 })}`
+          : ratio == null
+            ? '—'
+            : ratio > 10
+              ? '1:10+'
+              : `1:${formatNumber(ratio, 1)}`}
       </span>
       <div className="text-xs opacity-80">{verdict.label}</div>
     </>
